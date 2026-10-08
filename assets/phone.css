@@ -1,0 +1,67 @@
+/* Phone-frame stage used by the customer and dealer prototypes */
+.stage {
+  min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 40px; align-items: start; padding: 24px;
+}
+.side { align-self: stretch; display: flex; flex-direction: column; gap: 16px; max-width: 360px; justify-self: end; width: 100%; padding-top: 8px; }
+.side.right { justify-self: start; }
+.side .card { padding: 16px; }
+.side h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); margin-bottom: 10px; }
+.side .screen-name { font-size: 20px; font-weight: 700; }
+.side .back { font-size: 13px; text-decoration: none; color: var(--ink-2); }
+.side .q-item { padding: 10px 0; border-top: 1px solid var(--line); }
+.side .q-item:first-of-type { border-top: 0; padding-top: 0; }
+.side .q-item b { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.side .q-item b .qnum { background: #f5b400; color: #3d2c00; border-radius: 999px; font-size: 10.5px; padding: 1px 7px; }
+.side .q-item p { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+.side .q-item .ask { color: #6b4f00; background: #fff7dc; border-radius: 8px; padding: 6px 8px; margin-top: 6px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 600; }
+.switch { position: relative; width: 40px; height: 22px; border-radius: 999px; background: var(--line); border: 0; padding: 0; flex: none; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.switch.on { background: #f5b400; }
+.switch.on::after { left: 21px; }
+
+.phone {
+  width: 390px; height: min(844px, calc(100vh - 48px)); min-height: 640px;
+  border-radius: 46px; border: 11px solid #12161c; background: #fff;
+  box-shadow: 0 30px 60px rgba(15, 20, 30, .25); overflow: hidden; position: relative;
+  display: flex; flex-direction: column; position: sticky; top: 24px;
+}
+.statusbar { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; font-size: 12px; font-weight: 700; background: inherit; }
+.app { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg); position: relative; }
+.screen { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.pad { padding: 16px; }
+
+.topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fff; border-bottom: 1px solid var(--line); min-height: 52px; flex: none; }
+.topbar h2 { font-size: 16px; flex: 1; }
+.iconbtn { width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; display: grid; place-items: center; color: var(--ink); }
+.iconbtn:hover { background: var(--bg); }
+
+.bottomnav { display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border-top: 1px solid var(--line); flex: none; padding-bottom: 6px; }
+.bottomnav button { border: 0; background: none; padding: 8px 0 4px; display: grid; justify-items: center; gap: 2px; font-size: 11px; color: var(--ink-3); font-weight: 600; position: relative; }
+.bottomnav button.on { color: var(--brand); }
+.bottomnav .badge { position: absolute; top: 3px; left: 54%; background: var(--brand); color: #fff; border-radius: 999px; font-size: 10px; min-width: 16px; height: 16px; display: grid; place-items: center; padding: 0 4px; }
+
+.footerbar { flex: none; background: #fff; border-top: 1px solid var(--line); padding: 12px 16px 14px; }
+
+/* in-phone sheets */
+.psheet-backdrop { position: absolute; inset: 0; background: rgba(15, 20, 30, .45); display: none; align-items: flex-end; z-index: 30; }
+.psheet-backdrop.open { display: flex; }
+.psheet { background: #fff; width: 100%; border-radius: 18px 18px 0 0; padding: 18px 16px 20px; max-height: 88%; overflow-y: auto; }
+.psheet .grab { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: -6px auto 12px; }
+
+.toast { position: absolute; left: 16px; right: 16px; bottom: 86px; background: var(--steel); color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 13px; z-index: 40; opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: none; }
+
+@media (max-width: 1100px) {
+  .stage { grid-template-columns: auto minmax(0, 1fr); }
+  .side.right { display: none; }
+  .side { justify-self: stretch; }
+}
+@media (max-width: 760px) {
+  .stage { display: block; padding: 0; }
+  .side { display: none; }
+  .phone { width: 100%; height: 100vh; height: 100dvh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; position: relative; top: 0; }
+  .statusbar { display: none; }
+  .toast { bottom: 80px; }
+}
