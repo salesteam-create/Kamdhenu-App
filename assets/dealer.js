@@ -323,7 +323,7 @@
     const rows = mine(['delivered', 'settled']);
     const pending = rows.filter(r => r.sh.status === 'delivered').reduce((a, r) => a + KD.payout(r.sh).net, 0);
     const paid = rows.filter(r => r.sh.status === 'settled').reduce((a, r) => a + KD.payout(r.sh).net, 0);
-    return `${topbar('Payouts', '')}
+    return `${topbar('Payouts', '#/orders')}
     <div class="screen pad">
       <div class="paytop">
         <div><span>Releasing soon</span><b>${KD.inr(pending)}</b></div>
@@ -358,7 +358,7 @@
     const s = S();
     const st = KD.stocks(ME, s);
     const on = isOnline();
-    return `${topbar('Store', '')}
+    return `${topbar('Store', '#/orders')}
     <div class="screen pad">
       <div class="card">
         <div class="tog"><div><b>Accepting orders</b><div class="small muted">Turn off on holidays or when you have no vehicle</div></div><button class="switch ${on ? 'on' : ''}" data-act="online" aria-label="Accepting orders"></button></div>

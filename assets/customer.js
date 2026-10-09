@@ -42,6 +42,8 @@
     orders: { name: 'My orders', qs: [] },
     account: { name: 'Account', qs: [12, 11] },
     paid: { name: 'Payment successful', qs: [3] },
+    search: { name: 'Search', qs: [] },
+    alerts: { name: 'Notifications', qs: [7] },
   };
 
   function renderNotes(key) {
@@ -102,11 +104,32 @@
   }
   const closeSheet = () => { const b = app.querySelector('.psheet-backdrop'); if (b) b.classList.remove('open'); };
 
-  const topbar = (title, back, extra = '') => `
+  // In-app history so Back returns to the previous screen, with a sensible fallback
+  const hist = [];
+  function track(h) {
+    if (hist[hist.length - 1] === h) return;
+    if (hist[hist.length - 2] === h) hist.pop(); else hist.push(h);
+  }
+  const back = fallback => go(hist.length > 1 ? hist[hist.length - 2] : fallback);
+
+  const topbar = (title, fallback, extra = '') => `
     <div class="topbar">
-      ${back ? `<button class="iconbtn" data-act="go" data-to="${back}" aria-label="Back">${ic.back}</button>` : ''}
+      ${fallback ? `<button class="iconbtn" data-act="back" data-to="${fallback}" aria-label="Back">${ic.back}</button>` : ''}
       <h2>${title}</h2>${extra}
     </div>`;
+
+  // Sticky "View cart" bar shown on browsing screens
+  function cartBar() {
+    const s = S();
+    if (!s.cart.length) return '';
+    const lines = cartLinesWithRates();
+    const amt = lines.reduce((a, l) => a + l.qty * l.rate, 0);
+    return `<button class="cartbar" data-act="go" data-to="#/cart">
+      <span class="cb-count">${s.cart.length}</span>
+      <span class="grow"><b>${s.cart.length} item${s.cart.length > 1 ? 's' : ''} in cart</b><small>${KD.inr(amt)} + GST</small></span>
+      <span class="cb-go">View cart ${ic.chevron}</span>
+    </button>`;
+  }
 
   const nav = active => `
     <nav class="bottomnav">
@@ -193,12 +216,13 @@
       <div class="home-head">
         <div class="row between">
           <div class="wordmark"><span class="mark">K</span><span>Kamdhenu</span></div>
-          <button class="iconbtn" aria-label="Notifications">${ic.bell}</button>
+          <button class="iconbtn cart-ic" data-act="alerts" aria-label="Notifications">${ic.bell}${unread() ? `<span class="badge">${unread()}</span>` : ''}</button>
         </div>
         <button class="sitechip" data-act="sites">${ic.pin}<div class="grow"><b>${esc(st.name)}</b><span>${esc(st.area)} · ${zoneName(st.zone)}</span></div>${ic.chevron}</button>
-        <div class="search">${ic.search}Search TMT, binding wire, nails</div>
+        <button class="search" data-act="go" data-to="#/search">${ic.search}Search TMT, binding wire, nails</button>
       </div>
       <div class="pad">
+        ${activeOrderCard()}
         <div class="banner">
           <div class="tag">Today's ${zoneName(st.zone)} price ${q(5)}</div>
           <h3>Kamdhenu TMT from ${KD.inr2(from)}/kg</h3>
@@ -220,7 +244,7 @@
         </div>
         <p class="small muted" style="text-align:center;margin:18px 0 4px">Operated by Mohit Ispat Ltd ${q(11)}</p>
       </div>
-    </div>${nav('home')}`;
+    </div>${cartBar()}${nav('home')}`;
   }
 
   function draftKg(v, p) {
@@ -253,7 +277,7 @@
     const unitLabel = p.unit === 'bag' ? 'bags' : (ui.mode === 'pcs' && p.piecesAllowed ? 'pcs' : 'kg');
     const step = p.unit === 'bag' ? 1 : (ui.mode === 'pcs' ? 10 : 100);
     const t = productTotals(p);
-    return `${topbar(p.name, '#/home')}
+    return `${topbar(p.name, '#/home', `<button class="iconbtn cart-ic" data-act="go" data-to="#/cart" aria-label="Cart">${ic.cart}${cartCount() ? `<span class="badge">${cartCount()}</span>` : ''}</button>`)}
     <div class="screen pad">
       <p class="muted small">${p.blurb}</p>
       <div class="row between" style="margin:14px 0 10px">
@@ -270,6 +294,7 @@
               <b>${v.label}</b>
               <div class="meta">${KD.inr2(KD.rateFor(v.id, st.zone))} / ${p.unit}${v.pieceKg ? ` · bar ≈ ${v.pieceKg} kg` : ''} + GST</div>
               <div class="approx" data-approx="${v.id}">${approxText(v, p)}</div>
+              ${inCart(v.id) ? `<div class="incart">✓ ${KD.qtyFmt(inCart(v.id), p.unit)} in cart</div>` : ''}
             </div>
             <div class="qty">
               <button data-act="step" data-v="${v.id}" data-d="-${step}" aria-label="Less">−</button>
@@ -281,20 +306,26 @@
       </div>
       ${p.byWeight ? `<div class="note" style="margin-top:12px"><span>ℹ</span><span>Billing is on the actual weight loaded at the dealer. You pay a 2% refundable buffer, and any unused amount comes back to you after delivery. ${q(1)}</span></div>` : ''}
     </div>
-    <div class="footerbar">
+    <div class="footerbar" id="pFooter" ${!t.qty && cartCount() ? 'hidden' : ''}>
       <div class="row between" style="margin-bottom:10px">
         <span class="muted small" id="pTotQty">${t.qty ? (p.unit === 'bag' ? KD.qtyFmt(t.qty, 'bag') : KD.kgFmt(t.qty)) : 'Nothing added yet'}</span>
         <b id="pTotAmt">${KD.inr(t.amt)} <span class="muted small" style="font-weight:500">+ GST</span></b>
       </div>
       <button class="btn block lg" data-act="addCart" data-p="${p.id}" id="addBtn" ${t.qty ? '' : 'disabled'}>Add to cart</button>
-    </div>`;
+    </div>
+    <div id="pCartBar" ${!t.qty && cartCount() ? '' : 'hidden'}>${cartBar()}</div>`;
   }
+
+  const inCart = vid => { const l = S().cart.find(x => x.variantId === vid); return l ? l.qty : 0; };
 
   function refreshProductFooter(p) {
     const t = productTotals(p);
     document.getElementById('pTotQty').textContent = t.qty ? (p.unit === 'bag' ? KD.qtyFmt(t.qty, 'bag') : KD.kgFmt(t.qty)) : 'Nothing added yet';
     document.getElementById('pTotAmt').innerHTML = `${KD.inr(t.amt)} <span class="muted small" style="font-weight:500">+ GST</span>`;
     document.getElementById('addBtn').disabled = !t.qty;
+    const showBar = !t.qty && cartCount() > 0;
+    document.getElementById('pFooter').hidden = showBar;
+    document.getElementById('pCartBar').hidden = !showBar;
     p.variants.forEach(v => {
       const el = app.querySelector(`[data-approx="${v.id}"]`);
       if (el) el.textContent = approxText(v, p);
@@ -326,7 +357,7 @@
   function vCart() {
     const s = S();
     if (!s.cart.length) {
-      return `${topbar('Cart', '')}
+      return `${topbar('Cart', '#/home')}
       <div class="screen pad" style="text-align:center;padding-top:60px">
         <div class="success-ic" style="background:var(--bg);color:var(--ink-3)">${ic.cart}</div>
         <b>Your cart is empty</b><p class="muted small" style="margin:6px 0 16px">Add TMT bars, binding wire or nails to get started.</p>
@@ -338,15 +369,25 @@
     const b = billSummary(lines, groups);
     const kgTmt = tmtKg(lines);
     const short = kgTmt < KD.MIN_TMT_KG;
-    return `${topbar('Cart', '')}
+    return `${topbar('Cart', '#/home')}
     <div class="screen pad">
       <div class="card">
         ${lines.map((l, i) => `<div class="line">
-          <div><b>${esc(l.name)} · ${esc(l.label)}</b><div class="small muted">${KD.qtyFmt(l.qty, l.unit)}${l.mode === 'pcs' ? ` (${l.pieces} pcs)` : ''} × ${KD.inr2(l.rate)}/${l.unit}</div></div>
-          <div style="text-align:right"><b>${KD.inr(l.qty * l.rate)}</b><br><button class="x" data-act="rm" data-i="${i}">Remove</button></div>
+          <div><b>${esc(l.name)} · ${esc(l.label)}</b><div class="small muted">${KD.inr2(l.rate)}/${l.unit}${l.mode === 'pcs' ? ` · ${l.pieces} pcs ≈ ${KD.kgFmt(l.qty)}` : ''}</div></div>
+          <div style="text-align:right"><b>${KD.inr(l.qty * l.rate)}</b></div>
+          <div class="qty sm">
+            <button data-act="cq" data-i="${i}" data-d="-1" aria-label="Less">−</button>
+            <span class="qv">${l.mode === 'pcs' ? `${l.pieces} pcs` : KD.qtyFmt(l.qty, l.unit)}</span>
+            <button data-act="cq" data-i="${i}" data-d="1" aria-label="More">+</button>
+          </div>
+          <button class="x" data-act="rm" data-i="${i}">Remove</button>
         </div>`).join('')}
+        <button class="listrow addmore" data-act="go" data-to="#/home"><b class="small">+ Add more items</b></button>
       </div>
-      ${short ? `<div class="note warn" style="margin-top:12px"><span>!</span><span>Minimum order is ${KD.MIN_TMT_KG} kg of TMT. Add ${KD.kgFmt(KD.MIN_TMT_KG - kgTmt)} more to continue. ${q(2)}</span></div>` : ''}
+      <div class="minorder ${short ? '' : 'ok'}">
+        <div class="row between small"><span>${short ? `Add ${KD.kgFmt(KD.MIN_TMT_KG - kgTmt)} more TMT to place the order` : 'Minimum order reached'} ${q(2)}</span><b>${KD.kgFmt(kgTmt)} / ${KD.MIN_TMT_KG} kg</b></div>
+        <div class="minbar"><i style="width:${Math.min(100, kgTmt / KD.MIN_TMT_KG * 100)}%"></i></div>
+      </div>
       <div class="section-title">Delivery plan ${q(2)}</div>
       <div class="card">
         ${groups.map((g, k) => `<div class="ship-plan">
@@ -372,7 +413,7 @@
     const opt = (id, title, sub) => `<button class="payopt ${ui.pay === id ? 'on' : ''}" data-act="pay" data-m="${id}"><span class="radio"></span><span><b>${title}</b><span>${sub}</span></span></button>`;
     return `${topbar('Checkout', '#/cart')}
     <div class="screen pad">
-      <div class="section-title" style="margin-top:4px">Deliver to ${q(7)}</div>
+      <div class="section-title" style="margin-top:4px"><span>Deliver to ${q(7)}</span><button class="linkbtn" data-act="sites">Change</button></div>
       <div class="card pad">
         <b>${esc(st.name)}</b>
         <p class="small muted">${esc(st.addr)}, ${esc(st.area)}</p>
@@ -448,7 +489,10 @@
       <div class="card pad small">
         <b>Deliver to</b>
         <p class="muted">${esc(o.site.name)}<br>${esc(o.site.addr)}<br>Site contact: ${esc(o.site.contact)}</p>
+        <button class="btn ghost sm" style="margin-top:10px" data-act="toast" data-msg="Tracking link sent to ${esc(o.site.contact.split(' (')[0])} on WhatsApp">Share tracking with site contact ${q(7)}</button>
       </div>
+      <button class="btn soft block" style="margin-top:12px" data-act="reorder" data-o="${o.id}">Order the same items again</button>
+      <p class="small muted" style="text-align:center;margin-top:6px">Handy for the next stage of your site. Today's prices apply.</p>
     </div>${nav('orders')}`;
   }
 
@@ -465,7 +509,7 @@
       body = `<div class="note warn"><span>!</span><span>Nearby dealers could not take this right now. Our team is arranging it and will call you. If it is not assigned within 2 hours, you get a full refund. ${q(6)}</span></div>`;
     } else if (sh.status === 'accepted') {
       body = `<p class="small">Confirmed by a Kamdhenu dealer near your site. Expected delivery <b>today by 6:00 PM</b>.</p>
-        <div class="row"><button class="btn ghost sm" data-act="cancel" data-o="${o.id}" data-s="${sh.id}">Cancel shipment</button>${q(8)}</div>`;
+        <div class="row"><button class="btn ghost sm" data-act="askCancel" data-o="${o.id}" data-s="${sh.id}">Cancel shipment</button>${q(8)}</div>`;
     } else if (sh.status === 'dispatched') {
       body = `<div class="otpcard"><div><div class="small" style="opacity:.75">Delivery OTP ${q(7)}</div><div class="code">${sh.otp}</div></div><div class="small" style="text-align:right;opacity:.85">Also sent to<br>${esc(o.site.contact.split(' (')[0])}</div></div>
         <p class="small muted">Share this code only after the material is unloaded and checked.${sh.ewb ? ` E-way bill ${sh.ewb}.` : ''}</p>`;
@@ -515,9 +559,85 @@
     </div>`;
   }
 
+  // Customer-facing events for each shipment (dealer names and routing stay hidden)
+  function alerts() {
+    const out = [];
+    S().orders.forEach(o => o.shipments.forEach(sh => {
+      const tag = `${o.id}, shipment ${sh.n}`;
+      out.push({ t: o.at, o, text: `Payment received for ${tag}. Finding a dealer near your site.` });
+      if (sh.acceptedAt) out.push({ t: sh.acceptedAt, o, text: `${tag} confirmed by a Kamdhenu dealer. Delivery today by 6:00 PM.` });
+      if (sh.dispatchedAt) out.push({ t: sh.dispatchedAt, o, text: `${tag} is out for delivery. Your OTP is ${sh.otp}.` });
+      if (sh.deliveredAt) out.push({ t: sh.deliveredAt, o, text: `${tag} delivered. Refund of ${KD.inr(sh.refund || 0)} initiated.` });
+      if (sh.status === 'cancelled') out.push({ t: Date.now(), o, text: `${tag} cancelled. Full refund initiated.` });
+    }));
+    return out.sort((a, b) => b.t - a.t);
+  }
+  const unread = () => alerts().filter(x => x.t > (S().alertsSeen || 0)).length;
+
+  function vAlerts() {
+    const list = alerts();
+    const seen = ui.alertsSeenAtOpen || 0;
+    return `${topbar('Notifications', '#/home')}
+    <div class="screen pad">
+      ${list.length ? `<div class="card">${list.map(x => `<button class="listrow alert ${x.t > seen ? 'new' : ''}" data-act="go" data-to="#/order/${x.o.id}">
+        <span class="dotnew"></span><div class="grow small">${esc(x.text)}<div class="muted">${KD.time(x.t)}</div></div></button>`).join('')}</div>`
+        : '<div style="text-align:center;padding-top:60px"><b>No notifications yet</b><p class="small muted" style="margin-top:6px">Order updates also come by SMS and WhatsApp.</p></div>'}
+    </div>`;
+  }
+
+  function activeOrderCard() {
+    const o = S().orders.find(o => o.shipments.some(sh => !['settled', 'cancelled'].includes(sh.status)));
+    if (!o) return '';
+    const live = o.shipments.filter(sh => !['settled', 'cancelled'].includes(sh.status));
+    return `<button class="card activecard" data-act="go" data-to="#/order/${o.id}">
+      <div class="grow"><span class="small muted">Your order ${o.id}</span><div class="row" style="flex-wrap:wrap;margin-top:6px">${live.map(statusPill).join('')}</div></div>
+      <span class="linkbtn">Track ${ic.chevron}</span>
+    </button>`;
+  }
+
+  const allVariants = () => KD.products.flatMap(p => p.variants.map(v => ({ p, v, text: `${v.label} ${p.short} ${p.name}`.toLowerCase() })));
+  function searchResults(term) {
+    const t = term.trim().toLowerCase();
+    const st = site();
+    const hits = t ? allVariants().filter(x => t.split(/\s+/).every(w => x.text.includes(w))) : allVariants().filter(x => ['tmt-12', 'tmt-16', 'tmt-8', 'wire-20', 'nails-3'].includes(x.v.id));
+    return `${t ? '' : '<div class="small muted" style="margin-bottom:8px">Popular</div>'}
+      ${hits.length ? `<div class="card">${hits.map(x => `<button class="listrow" data-act="go" data-to="#/product/${x.p.id}">
+        <span class="sic">${prodIcon[x.p.icon]}</span><div class="grow"><b class="small">${x.v.label} ${x.p.short}</b><div class="small muted">${KD.inr2(KD.rateFor(x.v.id, st.zone))} / ${x.p.unit} + GST</div></div>${ic.chevron}</button>`).join('')}</div>`
+        : `<p class="small muted" style="text-align:center;margin-top:30px">No match. Cement, pipes and paints are coming in Phase 2.</p>`}`;
+  }
+  function vSearch() {
+    return `${topbar('Search', '#/home')}
+    <div class="screen pad">
+      <div class="search" style="margin:0 0 14px">${ic.search}<input id="searchBox" placeholder="Try 12 mm, binding wire, nails" value="${esc(ui.term || '')}" autocomplete="off"></div>
+      <div id="searchResults">${searchResults(ui.term || '')}</div>
+    </div>${cartBar()}${nav('home')}`;
+  }
+
+  // Shown after Add to cart: what was added, next steps and a binding wire suggestion
+  function addedSheet(addedLines) {
+    const lines = cartLinesWithRates();
+    const kgTmt = tmtKg(lines);
+    const hasWire = lines.some(l => l.variantId.startsWith('wire'));
+    const wireKg = Math.max(5, Math.ceil(kgTmt / 1000 * 9 / 5) * 5);
+    const amt = lines.reduce((a, l) => a + l.qty * l.rate, 0);
+    psheet(`<div class="added">
+      <div class="row" style="gap:10px"><span class="okdot">${ic.check}</span><div><h3>Added to cart</h3><span class="small muted">${addedLines.map(l => `${l.label} ${l.short} · ${KD.qtyFmt(l.qty, l.unit)}`).join(', ')}</span></div></div>
+      <div class="row between small" style="margin:14px 0 4px"><span>${lines.length} item${lines.length > 1 ? 's' : ''} in cart</span><b>${KD.inr(amt)} + GST</b></div>
+      ${kgTmt && kgTmt < KD.MIN_TMT_KG ? `<div class="note warn" style="margin-top:8px"><span>!</span><span>Add ${KD.kgFmt(KD.MIN_TMT_KG - kgTmt)} more TMT to reach the ${KD.MIN_TMT_KG} kg minimum.</span></div>` : ''}
+      ${kgTmt && !hasWire ? `<div class="suggest">
+        <div class="grow"><b class="small">Need binding wire?</b><div class="small muted">Commonly 8 to 10 kg per tonne of TMT. For your ${KD.kgFmt(kgTmt)}, about ${wireKg} kg. Check with your engineer.</div></div>
+        <button class="btn soft sm" data-act="addWire" data-kg="${wireKg}">Add ${wireKg} kg</button>
+      </div>` : ''}
+      <div class="row" style="margin-top:16px;gap:10px">
+        <button class="btn ghost grow" data-act="keepShopping">Continue shopping</button>
+        <button class="btn grow" data-act="viewCart">View cart</button>
+      </div>
+    </div>`);
+  }
+
   function vOrders() {
     const orders = S().orders;
-    return `${topbar('My orders', '')}
+    return `${topbar('My orders', '#/home')}
     <div class="screen pad">
       ${orders.length ? `<div class="olist">${orders.map(o => {
         const done = o.shipments.filter(sh => ['delivered', 'settled'].includes(sh.status)).length;
@@ -532,7 +652,7 @@
 
   function vAccount() {
     const s = S();
-    return `${topbar('Account', '')}
+    return `${topbar('Account', '#/home')}
     <div class="screen pad">
       <div class="card pad row" style="gap:12px">
         <div class="success-ic" style="margin:0;width:48px;height:48px;background:var(--brand-soft);color:var(--brand)">${ic.user}</div>
@@ -612,7 +732,14 @@
       login: vLogin, otp: vOtp, site: vSite, home: vHome,
       product: () => vProduct(arg), cart: vCart, checkout: vCheckout,
       order: () => vOrder(arg), orders: vOrders, account: vAccount, paid: () => vPaid(arg),
+      search: vSearch, alerts: vAlerts,
     };
+    const here = '#/' + view + (arg ? '/' + arg : '');
+    if (view === 'paid') hist.splice(0, hist.length, '#/home');
+    // the payment screen is a one-off: never return to it with Back
+    else if ((hist[hist.length - 1] || '').startsWith('#/paid/')) hist.pop();
+    if (['login', 'otp', 'site'].includes(view) && !s.sites.length) hist.length = 0;
+    track(here);
     const keep = app.querySelector('.screen');
     const sameView = render.last === view + '/' + arg;
     const scroll = sameView && keep ? keep.scrollTop : 0;
@@ -624,6 +751,7 @@
     render.last = view + '/' + arg;
     renderNotes(view);
     syncPresenter();
+    if (view === 'search' && !sameView) { const b = document.getElementById('searchBox'); if (b) b.focus(); }
   }
 
   /* ---------- events ---------- */
@@ -636,6 +764,57 @@
     }
     const a = el.dataset.act;
     if (a === 'go') return go(el.dataset.to);
+    if (a === 'back') return back(el.dataset.to);
+    if (a === 'alerts') {
+      ui.alertsSeenAtOpen = S().alertsSeen || 0;
+      commit(s => { s.alertsSeen = Date.now(); });
+      return go('#/alerts');
+    }
+    if (a === 'keepShopping') { closeSheet(); return go('#/home'); }
+    if (a === 'viewCart') { closeSheet(); return go('#/cart'); }
+    if (a === 'addWire') {
+      const kg = +el.dataset.kg;
+      commit(s => {
+        const ex = s.cart.find(l => l.variantId === 'wire-20');
+        if (ex) ex.qty += kg;
+        else s.cart.push({ variantId: 'wire-20', name: 'Binding Wire', label: '20 gauge', qty: kg, unit: 'kg', mode: 'kg', pieces: null, rate: KD.rateFor('wire-20', site().zone) });
+      });
+      app.querySelector('.suggest').outerHTML = `<div class="note good" style="margin-top:12px"><span>✓</span><span>${kg} kg binding wire added.</span></div>`;
+      return;
+    }
+    if (a === 'cq') {
+      commit(s => {
+        const l = s.cart[+el.dataset.i];
+        const d = +el.dataset.d;
+        if (l.mode === 'pcs') {
+          const v = KD.variant(l.variantId).variant;
+          l.pieces = Math.max(0, l.pieces + d * 5);
+          l.qty = +(l.pieces * v.pieceKg).toFixed(1);
+        } else {
+          l.qty = Math.max(0, +(l.qty + d * (l.unit === 'bag' ? 1 : 50)).toFixed(1));
+        }
+        if (!l.qty) s.cart.splice(+el.dataset.i, 1);
+      });
+      return;
+    }
+    if (a === 'reorder') {
+      const o = S().orders.find(x => x.id === el.dataset.o);
+      commit(s => {
+        o.lines.forEach(l => {
+          const ex = s.cart.find(c => c.variantId === l.variantId);
+          if (ex) { ex.qty = +(ex.qty + l.qty).toFixed(1); if (l.pieces) ex.pieces = (ex.pieces || 0) + l.pieces; }
+          else s.cart.push({ ...l, rate: KD.rateFor(l.variantId, site().zone) });
+        });
+      });
+      toast('Items added to your cart at today\'s prices');
+      return go('#/cart');
+    }
+    if (a === 'askCancel') {
+      const { sh } = KD.find(S(), el.dataset.s);
+      return psheet(`<h3>Cancel this shipment?</h3>
+        <p class="small muted" style="margin:6px 0 14px">The dealer has not dispatched it yet, so you get a full refund of ${KD.inr(sh.quote.total)} to your original payment method within 5 to 7 working days.</p>
+        <div class="row" style="gap:10px"><button class="btn ghost grow" data-act="closeSheet">Keep it</button><button class="btn grow" data-act="cancel" data-o="${el.dataset.o}" data-s="${el.dataset.s}">Yes, cancel</button></div>`);
+    }
     if (a === 'q') { e.stopPropagation(); return openQ(el.dataset.n); }
     if (a === 'closeq') return document.getElementById('qsheet').classList.remove('open');
     if (a === 'closeSheet') return closeSheet();
@@ -695,9 +874,10 @@
           added++;
         });
       });
+      const addedLines = p.variants.filter(v => draftKg(v, p)).map(v => ({ label: v.label, short: p.short, qty: draftKg(v, p), unit: p.unit }));
       p.variants.forEach(v => { delete ui.draft[v.id]; });
-      toast(`${added} item${added > 1 ? 's' : ''} added to cart`);
-      return render();
+      render();
+      return addedSheet(addedLines);
     }
     if (a === 'rm') { commit(s => { s.cart.splice(+el.dataset.i, 1); }); return render(); }
     if (a === 'pay') { ui.pay = el.dataset.m; return render(); }
@@ -712,6 +892,7 @@
     }
     if (a === 'advance') { advance(el.dataset.o, el.dataset.s); return; }
     if (a === 'cancel') {
+      closeSheet();
       commit(s => {
         const sh = s.orders.find(x => x.id === el.dataset.o).shipments.find(x => x.id === el.dataset.s);
         sh.status = 'cancelled';
@@ -738,6 +919,11 @@
   });
 
   document.addEventListener('input', e => {
+    if (e.target.id === 'searchBox') {
+      ui.term = e.target.value;
+      document.getElementById('searchResults').innerHTML = searchResults(ui.term);
+      return;
+    }
     const id = e.target.dataset && e.target.dataset.qty;
     if (!id) return;
     ui.draft[id] = e.target.value.replace(/[^\d.]/g, '');

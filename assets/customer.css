@@ -114,3 +114,40 @@
 .upload { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--ink-3); font-size: 12.5px; }
 .listrow { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-top: 1px solid var(--line); background: #fff; width: 100%; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; }
 .listrow:first-child { border-top: 0; }
+
+/* ---------- cart bar, badges, steppers ---------- */
+.cartbar { display: flex; align-items: center; gap: 10px; margin: 0 12px 8px; width: calc(100% - 24px); padding: 10px 14px; background: var(--brand); color: #fff; border: 0; border-radius: 12px; box-shadow: 0 6px 16px rgba(179, 18, 27, .3); text-align: left; flex: none; }
+.cartbar b { font-size: 13.5px; }
+.cartbar small { display: block; opacity: .85; font-size: 11.5px; }
+.cb-count { width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,.2); display: grid; place-items: center; font-weight: 800; flex: none; }
+.cb-go { display: flex; align-items: center; gap: 2px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+#pCartBar { background: #fff; border-top: 1px solid var(--line); padding-top: 10px; padding-bottom: 4px; flex: none; }
+.cart-ic { position: relative; }
+.cart-ic .badge { position: absolute; top: 1px; right: -1px; background: var(--brand); color: #fff; border-radius: 999px; font-size: 10px; min-width: 16px; height: 16px; display: grid; place-items: center; padding: 0 4px; font-weight: 700; }
+.incart { font-size: 11.5px; color: var(--good); font-weight: 600; margin-top: 2px; }
+.line .qty.sm { justify-self: start; }
+.qty.sm button { width: 32px; height: 32px; font-size: 16px; }
+.qty .qv { min-width: 84px; text-align: center; font-weight: 700; font-size: 12.5px; padding: 0 6px; }
+.line .x { align-self: center; }
+.addmore { justify-content: center; }
+.minorder { margin-top: 12px; background: #fff; border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
+.minbar { height: 6px; background: var(--bg); border-radius: 6px; margin-top: 8px; overflow: hidden; }
+.minbar i { display: block; height: 100%; background: var(--warn); border-radius: 6px; transition: width .2s; }
+.minorder.ok .minbar i { background: var(--good); }
+.linkbtn { border: 0; background: none; color: var(--brand); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 2px; padding: 0; white-space: nowrap; }
+
+/* ---------- home, search, notifications ---------- */
+.activecard { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; text-align: left; padding: 12px 14px; margin-bottom: 14px; border-left: 4px solid var(--brand); }
+button.search { width: 100%; text-align: left; font-size: 13px; }
+.search input { border: 0; outline: none; flex: 1; min-width: 0; background: transparent; color: var(--ink); font-size: 14px; }
+.sic { width: 36px; height: 36px; border-radius: 10px; background: var(--brand-soft); display: grid; place-items: center; flex: none; }
+.sic svg { width: 22px; height: 22px; }
+.alert { align-items: flex-start; }
+.alert .dotnew { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-top: 6px; }
+.alert.new { background: #fffafa; }
+.alert.new .dotnew { background: var(--brand); }
+
+/* ---------- added-to-cart sheet ---------- */
+.okdot { width: 38px; height: 38px; border-radius: 50%; background: var(--good-soft); color: var(--good); display: grid; place-items: center; flex: none; }
+.okdot svg { width: 20px; height: 20px; }
+.suggest { display: flex; gap: 10px; align-items: center; margin-top: 12px; padding: 12px; border: 1px dashed var(--brand); border-radius: 12px; background: #fffafa; }
