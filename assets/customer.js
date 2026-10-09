@@ -29,7 +29,7 @@
   };
 
   /* ---------- discussion pins ---------- */
-  const q = (...ns) => ns.map(n => `<button class="qpin" data-act="q" data-n="${n}" title="Discussion point ${n}">Q${n}</button>`).join('');
+  const q = (...ns) => `<span class="qpins">${ns.map(n => `<button class="qpin" data-act="q" data-n="${n}" title="Discussion point ${n}">Q${n}</button>`).join('')}</span>`;
   const screenQs = {
     login: { name: 'Sign in', qs: [11, 12] },
     otp: { name: 'Verify OTP', qs: [11] },
@@ -406,6 +406,7 @@
     if (sh.issue && sh.issue.status === 'open') return '<span class="pill warn">Issue under review</span>';
     return {
       routing: '<span class="pill info">Finding dealer</span>',
+      unassigned: '<span class="pill warn">Finding dealer</span>',
       accepted: '<span class="pill info">Confirmed</span>',
       dispatched: '<span class="pill brand">Out for delivery</span>',
       delivered: '<span class="pill good">Delivered</span>',
@@ -415,89 +416,23 @@
 
   function placeOrder() {
     const lines = cartLinesWithRates();
-    const groups = KD.plan(lines);
     const st = site();
     let id;
     commit(s => {
-      id = 'KD-' + (s.seq++);
-      const order = {
-        id, at: Date.now(), user: s.user, method: ui.pay === 'emi' ? `Card EMI, ${ui.emi} months` : { upi: 'UPI', card: 'Card', nb: 'Net banking' }[ui.pay],
-        site: { ...st }, lines,
-        shipments: groups.map((g, k) => {
-          const sh = {
-            id: `${id}-${k + 1}`, n: k + 1, of: groups.length, lines: g.lines, km: g.km,
-            quote: KD.totals(lines, g.lines, g.km), dealerId: null, offers: [],
-            status: 'routing', otp: String(1000 + Math.floor(Math.random() * 9000)),
-            actual: null, final: null, refund: null, issue: null, ewb: null, log: [],
-          };
-          KD.log(sh, `Payment of ${KD.inr(sh.quote.total)} received and held in escrow`);
-          return sh;
-        }),
-      };
-      order.paid = order.shipments.reduce((a, sh) => a + sh.quote.total, 0);
-      s.orders.unshift(order);
+      const method = ui.pay === 'emi' ? `Card EMI, ${ui.emi} months` : { upi: 'UPI', card: 'Card', nb: 'Net banking' }[ui.pay];
+      id = KD.createOrder(s, { user: s.user, site: st, lines, method }).id;
       s.cart = [];
     });
     return id;
   }
 
-  // Simulated routing: the second shipment shows a decline and re-offer
-  const timers = {};
-  function runRouting(orderId) {
-    const s = S();
-    const o = s.orders.find(x => x.id === orderId);
-    if (!o) return;
-    o.shipments.forEach((sh, k) => {
-      if (sh.status !== 'routing' || timers[sh.id]) return;
-      const prodIds = [...new Set(sh.lines.map(i => o.lines[i].variantId.split('-')[0]))];
-      const cands = KD.dealers.filter(d => d.km <= KD.RADIUS_KM && prodIds.every(p => d.stocks.includes(p))).sort((a, b) => a.km - b.km);
-      const script = k === sh.of - 1 && cands.length > 1
-        ? [{ d: cands[0], act: 'offer' }, { d: cands[0], act: 'decline' }, { d: cands[1], act: 'offer' }, { d: cands[1], act: 'accept' }]
-        : [{ d: cands[0], act: 'offer' }, { d: cands[0], act: 'accept' }];
-      let t = 0;
-      timers[sh.id] = true;
-      script.forEach(step => {
-        t += 1100 + k * 300;
-        setTimeout(() => commit(st => {
-          const oo = st.orders.find(x => x.id === orderId);
-          const ss = oo && oo.shipments.find(x => x.id === sh.id);
-          if (!ss || ss.status !== 'routing') return;
-          if (step.act === 'offer') { ss.offers.push({ dealerId: step.d.id, at: Date.now(), result: 'pending' }); KD.log(ss, `Offered to ${step.d.name} (${step.d.km} km), ${KD.ACCEPT_MIN} min to accept`); }
-          if (step.act === 'decline') { ss.offers[ss.offers.length - 1].result = 'declined'; KD.log(ss, `Declined by ${step.d.name}, offering to next nearest dealer`); }
-          if (step.act === 'accept') { ss.offers[ss.offers.length - 1].result = 'accepted'; ss.dealerId = step.d.id; ss.status = 'accepted'; KD.log(ss, `Accepted by ${step.d.name}`); }
-        }), t);
-      });
-    });
-  }
-
+  // Demo shortcut for steps the dealer would normally do in the dealer app
   function advance(orderId, shipId) {
-    commit(s => {
-      const o = s.orders.find(x => x.id === orderId);
-      const sh = o.shipments.find(x => x.id === shipId);
-      const d = KD.dealer(sh.dealerId);
-      if (sh.status === 'accepted') {
-        sh.status = 'dispatched';
-        if (sh.quote.total > 50000) sh.ewb = '1812 ' + String(Math.floor(1000 + Math.random() * 9000)) + ' ' + String(Math.floor(1000 + Math.random() * 9000));
-        KD.log(sh, `Dispatched by ${d.name}${sh.ewb ? `, e-way bill ${sh.ewb}` : ''}`);
-      } else if (sh.status === 'dispatched') {
-        sh.status = 'delivered';
-        sh.deliveredAt = Date.now();
-        sh.actual = {};
-        sh.lines.forEach(i => {
-          const l = o.lines[i];
-          const f = l.unit === 'bag' ? 1 : (l.variantId.startsWith('tmt') ? 1.012 : 0.994);
-          sh.actual[i] = l.unit === 'bag' ? l.qty : Math.round(l.qty * f * 10) / 10;
-        });
-        sh.final = KD.totals(o.lines, sh.lines, sh.km, sh.actual);
-        sh.refund = Math.max(0, sh.quote.total - sh.final.total);
-        KD.log(sh, `Delivered. OTP verified, site photo uploaded`);
-        KD.log(sh, `Final bill ${KD.inr(sh.final.total)} on actual weight. Refund of ${KD.inr(sh.refund)} initiated`);
-      } else if (sh.status === 'delivered') {
-        if (sh.issue && sh.issue.status === 'open') return;
-        sh.status = 'settled';
-        KD.log(sh, `24 hours passed with no dispute. Payout released to ${d.name}`);
-      }
-    });
+    const { o, sh } = KD.find(S(), shipId);
+    if (!sh) return;
+    if (sh.status === 'accepted') KD.dispatch(shipId, { actual: KD.simulatedActual(o, sh), vehicle: 'GA 08 T 4521', ewb: sh.quote.total > 50000 ? KD.randomEwb() : null });
+    else if (sh.status === 'dispatched') KD.deliver(shipId);
+    else if (sh.status === 'delivered') KD.settle(shipId);
   }
 
   function vOrder(id) {
@@ -526,6 +461,8 @@
       body = `<div class="note">Cancelled. Full refund of ${KD.inr(sh.quote.total)} initiated to your original payment method.</div>`;
     } else if (sh.status === 'routing') {
       body = `<div class="row" style="gap:12px"><div class="spinner" style="width:24px;height:24px;border-width:3px;margin:0"></div><div><b>Finding the nearest Kamdhenu dealer</b><p class="small muted">Dealers within ${KD.RADIUS_KM} km get ${KD.ACCEPT_MIN} minutes each to accept. ${q(6)}</p></div></div>`;
+    } else if (sh.status === 'unassigned') {
+      body = `<div class="note warn"><span>!</span><span>Nearby dealers could not take this right now. Our team is arranging it and will call you. If it is not assigned within 2 hours, you get a full refund. ${q(6)}</span></div>`;
     } else if (sh.status === 'accepted') {
       body = `<p class="small">Confirmed by a Kamdhenu dealer near your site. Expected delivery <b>today by 6:00 PM</b>.</p>
         <div class="row"><button class="btn ghost sm" data-act="cancel" data-o="${o.id}" data-s="${sh.id}">Cancel shipment</button>${q(8)}</div>`;
@@ -549,7 +486,8 @@
         </div>`;
     }
     const demoLabel = { accepted: 'Demo: dealer dispatches', dispatched: 'Demo: delivered at site', delivered: 'Demo: 24 hours pass' }[sh.status];
-    const canDemo = demoLabel && !(sh.issue && sh.issue.status === 'open');
+    const dealerDrives = sh.dealerId === KD.DEMO_DEALER && KD.dealerLive() && sh.status !== 'delivered';
+    const canDemo = demoLabel && !dealerDrives && !(sh.issue && sh.issue.status === 'open');
     return `<div class="card ship">
       <div class="ship-head">
         <div><b>Shipment ${sh.n} of ${sh.of}</b><div class="small muted">${items.map(l => `${l.label} ${KD.variant(l.variantId).product.short}`).join(', ')}</div></div>
@@ -686,7 +624,6 @@
     render.last = view + '/' + arg;
     renderNotes(view);
     syncPresenter();
-    if (view === 'order') runRouting(arg);
   }
 
   /* ---------- events ---------- */
@@ -811,6 +748,7 @@
     commit(s => { s.presenter = !s.presenter; });
   });
 
+  KD.startTicker();
   window.addEventListener('hashchange', render);
   window.addEventListener('kd:state', render);
   render();

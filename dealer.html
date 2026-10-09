@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kamdhenu App · Dealer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/common.css">
+  <link rel="stylesheet" href="assets/phone.css">
+  <link rel="stylesheet" href="assets/customer.css">
+  <link rel="stylesheet" href="assets/dealer.css">
+</head>
+<body>
+  <div class="stage">
+    <aside class="side">
+      <a class="back" href="index.html">&larr; All prototypes</a>
+      <div>
+        <div class="muted small">Dealer app</div>
+        <div class="screen-name" id="screenName">Sign in</div>
+      </div>
+      <div class="card">
+        <div class="toggle">
+          <span>Show discussion points</span>
+          <button class="switch" id="presenterSwitch" aria-label="Show discussion points"></button>
+        </div>
+      </div>
+      <div class="card" id="notes">
+        <h4>To confirm on this screen</h4>
+        <div id="notesBody"></div>
+      </div>
+    </aside>
+
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>5G &#9646;&#9646;&#9646;</span></div>
+      <div class="app" id="app"></div>
+    </div>
+
+    <aside class="side right">
+      <div class="card">
+        <h4>Demo controls</h4>
+        <p class="small muted" style="margin-bottom:12px">This is a clickable prototype. Prices, dealers and people are demo data. Signed in as a demo dealer, Shree Ganesh Hardware in Navelim. Dashed blue buttons simulate steps outside the dealer’s control.</p>
+        <button class="btn ghost sm block" data-act="reset">Reset demo</button>
+      </div>
+      <div class="card">
+        <h4>Try it together</h4>
+        <p class="small muted" style="margin-bottom:12px">Open the side-by-side demo to place an order as a customer and accept it here.</p>
+        <a class="btn soft sm block" href="demo.html">Open side-by-side demo</a>
+      </div>
+      <div class="card">
+        <h4>Coming next</h4>
+        <p class="small muted">Admin panel for Mohit Ispat: dealers, zone prices, routing, escrow and disputes.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="sheet-backdrop" id="qsheet"><div class="sheet" id="qsheetBody"></div></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/dealer.js"></script>
+</body>
+</html>

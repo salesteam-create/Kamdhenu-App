@@ -114,10 +114,14 @@ const KD = (() => {
   };
 
   /* ---------- routing plan: nearest stocking dealer per product ---------- */
-  const nearestFor = (productId, exclude = []) =>
+  // A dealer's stock list and online status can be changed from the dealer app
+  const stocks = (d, s = load()) => (s.dealerStock && s.dealerStock[d.id]) || d.stocks;
+  const online = (d, s = load()) => !(s.dealerOffline && s.dealerOffline[d.id]);
+  const eligible = (productIds, s = load()) =>
     dealers
-      .filter(d => d.km <= RADIUS_KM && d.stocks.includes(productId) && !exclude.includes(d.id))
-      .sort((a, b) => a.km - b.km)[0];
+      .filter(d => d.km <= RADIUS_KM && online(d, s) && productIds.every(p => stocks(d, s).includes(p)))
+      .sort((a, b) => a.km - b.km);
+  const nearestFor = productId => eligible([productId])[0];
 
   // Group cart lines into shipments by the dealer that would fulfil them
   const plan = lines => {
@@ -182,10 +186,206 @@ const KD = (() => {
 
   const log = (ship, text, who = 'system') => ship.log.push({ t: Date.now(), text, who });
 
+  /* ---------- orders ---------- */
+  const productOf = line => line.variantId.split('-')[0];
+
+  // Builds a paid order with one shipment per fulfilling dealer and adds it to state
+  function createOrder(s, { user, site, lines, method }) {
+    const id = 'KD-' + (s.seq++);
+    const groups = plan(lines);
+    const now = Date.now();
+    const order = {
+      id, at: now, user, method, site: { ...site }, lines,
+      shipments: groups.map((g, k) => {
+        const sh = {
+          id: `${id}-${k + 1}`, n: k + 1, of: groups.length, lines: g.lines, km: g.km,
+          quote: totals(lines, g.lines, g.km), dealerId: null, offers: [], step: now,
+          status: 'routing', otp: String(1000 + Math.floor(Math.random() * 9000)),
+          actual: null, final: null, refund: null, issue: null, ewb: null, vehicle: null, log: [],
+        };
+        log(sh, `Payment of ${inr(sh.quote.total)} received and held in escrow`);
+        return sh;
+      }),
+    };
+    order.paid = order.shipments.reduce((a, sh) => a + sh.quote.total, 0);
+    s.orders.unshift(order);
+    return order;
+  }
+
+  const find = (s, shipId) => {
+    for (const o of s.orders) {
+      const sh = o.shipments.find(x => x.id === shipId);
+      if (sh) return { o, sh };
+    }
+    return {};
+  };
+
+  /* ---------- routing engine ----------
+     Offers go to the nearest eligible dealer one at a time. The demo dealer
+     (d1) waits for a real tap when the dealer app is open; every other
+     dealer answers automatically after a short pause. */
+  const DEMO_DEALER = 'd1';
+  const AUTO_MS = 2600;
+  const STEP_MS = 900;
+  const MAX_TRIES = 3;
+  const HB_KEY = 'kd-dealer-seen';
+  const heartbeat = () => { try { localStorage.setItem(HB_KEY, String(Date.now())); } catch (e) { /* ignore */ } };
+  const dealerLive = () => { try { return Date.now() - (+localStorage.getItem(HB_KEY) || 0) < 5000; } catch (e) { return false; } };
+  // Demo behaviour: Naik Steel turns down nail orders (out of stock)
+  const autoAnswer = (dealerId, o, sh) =>
+    dealerId === 'd2' && sh.lines.some(i => productOf(o.lines[i]) === 'nails') ? 'decline' : 'accept';
+
+  function resolveOffer(o, sh, offer, result, { reason, who = 'dealer' } = {}) {
+    const d = dealer(offer.dealerId);
+    offer.result = result;
+    offer.doneAt = Date.now();
+    sh.step = Date.now();
+    if (result === 'accepted') {
+      sh.dealerId = d.id;
+      sh.status = 'accepted';
+      sh.acceptedAt = Date.now();
+      log(sh, `Accepted by ${d.name}${who === 'admin' ? ' (confirmed by admin after a call)' : ''}`, who);
+    } else if (result === 'declined') {
+      offer.reason = reason || 'Not available';
+      log(sh, `Declined by ${d.name}: ${offer.reason}`, who);
+    } else {
+      log(sh, `No response from ${d.name} in ${ACCEPT_MIN} min`);
+    }
+  }
+
+  // Dealer (or admin on the dealer's behalf) answers the pending offer
+  function respond(shipId, dealerId, accept, opts) {
+    const s = load();
+    const { o, sh } = find(s, shipId);
+    if (!sh || sh.status !== 'routing') return false;
+    const offer = sh.offers.find(f => f.result === 'pending' && f.dealerId === dealerId);
+    if (!offer) return false;
+    resolveOffer(o, sh, offer, accept ? 'accepted' : 'declined', opts);
+    save(s);
+    return true;
+  }
+
+  const PAGE = Math.random().toString(36).slice(2);
+  function tick() {
+    const s = load();
+    const now = Date.now();
+    if (s.tick && s.tick.owner !== PAGE && now - s.tick.at < 3000) return;
+    let changed = false;
+    s.orders.forEach(o => o.shipments.forEach(sh => {
+      if (sh.status !== 'routing') return;
+      const pending = sh.offers.find(f => f.result === 'pending');
+      if (pending) {
+        const waitsForTap = pending.dealerId === DEMO_DEALER && dealerLive();
+        if (!waitsForTap && now - pending.at > AUTO_MS) {
+          const ans = autoAnswer(pending.dealerId, o, sh);
+          resolveOffer(o, sh, pending, ans === 'accept' ? 'accepted' : 'declined', { reason: 'Out of stock' });
+          changed = true;
+        } else if (waitsForTap && now - pending.at > ACCEPT_MIN * 60000) {
+          resolveOffer(o, sh, pending, 'expired');
+          changed = true;
+        }
+        return;
+      }
+      if (now - (sh.step || 0) < STEP_MS) return;
+      const tried = sh.offers.map(f => f.dealerId);
+      const prods = [...new Set(sh.lines.map(i => productOf(o.lines[i])))];
+      const next = eligible(prods, s).find(d => !tried.includes(d.id));
+      if (next && tried.length < MAX_TRIES) {
+        sh.offers.push({ dealerId: next.id, at: now, result: 'pending' });
+        log(sh, `Offered to ${next.name} (${next.km} km), ${ACCEPT_MIN} min to accept`);
+      } else {
+        sh.status = 'unassigned';
+        log(sh, 'No dealer accepted. Admin alerted. Full refund if unassigned within 2 hours');
+      }
+      sh.step = now;
+      changed = true;
+    }));
+    if (changed) { s.tick = { owner: PAGE, at: now }; save(s); }
+  }
+  let ticker = null;
+  const startTicker = () => { if (!ticker) { tick(); ticker = setInterval(tick, 500); } };
+
+  /* ---------- fulfilment ---------- */
+  // Max weight the customer has paid for: ordered weight plus the buffer
+  const maxQty = line => line.unit === 'bag' ? line.qty : +(line.qty * (1 + BUFFER)).toFixed(1);
+
+  function dispatch(shipId, { actual, vehicle, ewb }) {
+    const s = load();
+    const { o, sh } = find(s, shipId);
+    if (!sh || sh.status !== 'accepted') return;
+    sh.actual = actual;
+    sh.vehicle = vehicle || null;
+    sh.ewb = ewb || null;
+    sh.final = totals(o.lines, sh.lines, sh.km, actual);
+    sh.status = 'dispatched';
+    sh.dispatchedAt = Date.now();
+    log(sh, `Invoice confirmed on loaded weight ${inr(sh.final.total)}. Dispatched${vehicle ? ` in ${vehicle}` : ''}${ewb ? `, e-way bill ${ewb}` : ''}`, 'dealer');
+    save(s);
+  }
+
+  function deliver(shipId, { by = 'dealer' } = {}) {
+    const s = load();
+    const { o, sh } = find(s, shipId);
+    if (!sh || sh.status !== 'dispatched') return;
+    sh.status = 'delivered';
+    sh.deliveredAt = Date.now();
+    sh.photo = true;
+    sh.refund = Math.max(0, sh.quote.total - sh.final.total);
+    log(sh, 'Delivered. OTP verified, site photo uploaded', by);
+    log(sh, `Final bill ${inr(sh.final.total)}. Refund of ${inr(sh.refund)} to customer initiated`);
+    save(s);
+  }
+
+  function settle(shipId) {
+    const s = load();
+    const { sh } = find(s, shipId);
+    if (!sh || sh.status !== 'delivered' || (sh.issue && sh.issue.status === 'open')) return;
+    sh.status = 'settled';
+    sh.settledAt = Date.now();
+    log(sh, `No dispute in 24 hours. Payout of ${inr(payout(sh).net)} released to ${dealer(sh.dealerId).name}`);
+    save(s);
+  }
+
+  // Dealer payout for a shipment: final bill less payment gateway charges
+  const GATEWAY = 0.02;
+  const payout = sh => {
+    const gross = sh.final ? sh.final.total : sh.quote.total;
+    const fee = sh.quote.total * GATEWAY;
+    return { gross, fee, net: gross - fee };
+  };
+
+  // Simulated actual weights, used when no dealer app is driving the order
+  const simulatedActual = (o, sh) => {
+    const a = {};
+    sh.lines.forEach(i => {
+      const l = o.lines[i];
+      const f = l.unit === 'bag' ? 1 : (productOf(l) === 'tmt' ? 1.012 : 0.994);
+      a[i] = l.unit === 'bag' ? l.qty : Math.round(l.qty * f * 10) / 10;
+    });
+    return a;
+  };
+  const randomEwb = () => `1812 ${1000 + Math.floor(Math.random() * 9000)} ${1000 + Math.floor(Math.random() * 9000)}`;
+
+  // A sample order from another customer, so the dealer app can be demoed on its own
+  function demoOrder() {
+    const s = load();
+    const site = { id: 'demo', name: 'Shetty residence', addr: 'House 22, Colmorod, near Navelim church', area: 'Navelim, Margao', pincode: '403707', zone: 'sgoa', contact: 'Ravi Naik (contractor)', contactPhone: '+91 98500 44556' };
+    const pick = [['tmt-10', 400], ['tmt-12', 900], ['wire-20', 20]];
+    const lines = pick.map(([vid, qty]) => {
+      const { product, variant: v } = variant(vid);
+      return { variantId: vid, name: product.name, label: v.label, qty, unit: product.unit, mode: 'kg', pieces: null, rate: rateFor(vid, site.zone) };
+    });
+    const o = createOrder(s, { user: { name: 'Priya Shetty', phone: '+91 99230 77881' }, site, lines, method: 'UPI' });
+    save(s);
+    return o;
+  }
+
   return {
     GST, BUFFER, MIN_TMT_KG, RADIUS_KM, ACCEPT_MIN, slabs, feeFor, slabLabel,
     zones, products, variant, dealers, dealer, questions,
     inr, inr2, kgFmt, qtyFmt, time, date,
     rateFor, nearestFor, plan, totals, load, save, reset, log,
+    stocks, online, productOf, createOrder, find, DEMO_DEALER, heartbeat, dealerLive, respond, tick, startTicker,
+    maxQty, dispatch, deliver, settle, payout, GATEWAY, simulatedActual, randomEwb, demoOrder,
   };
 })();
