@@ -3,7 +3,7 @@
 const KD = (() => {
   const GST = 0.18;          // TMT, binding wire and nails
   const BUFFER = 0.02;       // refundable weight buffer on kg-billed items
-  const MIN_TMT_KG = 500;    // minimum TMT per order
+  const MIN_TMT_T = 0.5;    // minimum TMT per order, in tonnes
   const RADIUS_KM = 15;
   const ACCEPT_MIN = 15;
 
@@ -28,15 +28,16 @@ const KD = (() => {
 
   // Standard 12 m bar weight: d^2 / 162 kg per metre
   const barKg = d => +((d * d) / 162 * 12).toFixed(2);
-  const tmtBase = { 8: 58.5, 10: 57.0, 12: 56.0, 16: 55.5, 20: 55.5, 25: 56.0, 32: 56.5 };
+  // TMT is traded in tonnes: rates are per tonne
+  const tmtBase = { 8: 58500, 10: 57000, 12: 56000, 16: 55500, 20: 55500, 25: 56000, 32: 56500 };
 
   const products = [
     {
       id: 'tmt', name: 'Kamdhenu TMT Bars', short: 'TMT Bars', brand: 'Kamdhenu',
-      blurb: 'Fe 550D TMT bars, 12 m length. Billed on actual weight.',
-      unit: 'kg', byWeight: true, piecesAllowed: true, icon: 'tmt',
+      blurb: 'Fe 550D TMT bars, 12 m length. Ordered in tonnes, billed on actual weight.',
+      unit: 't', byWeight: true, piecesAllowed: true, icon: 'tmt',
       variants: [8, 10, 12, 16, 20, 25, 32].map(d => ({
-        id: `tmt-${d}`, label: `${d} mm`, rate: tmtBase[d], pieceKg: barKg(d),
+        id: `tmt-${d}`, label: `${d} mm`, rate: tmtBase[d], pieceKg: barKg(d), pieceT: barKg(d) / 1000,
       })),
     },
     {
@@ -80,7 +81,7 @@ const KD = (() => {
   // Proposed answers shown to the client during the walkthrough
   const questions = [
     { n: 1, title: 'Weight variance', answer: 'Customer pays for the ordered weight plus a 2% refundable buffer, held in escrow. Final bill uses the actual weight; unused amount is refunded automatically within 48 hours.', ask: 'Is a 2% buffer acceptable, or should the dealer absorb small variances?' },
-    { n: 2, title: 'Delivery fee and minimum order', answer: 'Fee by distance slab (0 to 5, 5 to 10, 10 to 15 km), shown before payment, paid to the dealer. Each shipment carries its own fee. Minimum 500 kg TMT. Unloading not included. If an order is re-routed to a farther dealer, the customer still pays the quoted fee.', ask: 'Are the slabs and amounts right? Is 500 kg the right minimum?' },
+    { n: 2, title: 'Delivery fee and minimum order', answer: 'Fee by distance slab (0 to 5, 5 to 10, 10 to 15 km), shown before payment, paid to the dealer. Each shipment carries its own fee. Minimum 0.5 tonne of TMT. Unloading not included. If an order is re-routed to a farther dealer, the customer still pays the quoted fee.', ask: 'Are the slabs and amounts right? Is 0.5 tonne the right minimum?' },
     { n: 3, title: 'Escrow and payments', answer: 'Payment gateway split settlement. Funds held per shipment, released to the dealer 24 hours after delivery. Mohit Ispat is the marketplace operator. TCS and TDS position to be confirmed by your CA.', ask: 'Which gateway do you prefer, and can your CA confirm the tax position?' },
     { n: 4, title: 'GST invoice', answer: 'The app generates the invoice in the dealer’s name and GSTIN from the actual weight. The dealer confirms it. The dealer issues the e-way bill where needed and the app records its number.', ask: 'Are dealers comfortable with app-generated invoices?' },
     { n: 5, title: 'TMT pricing by zone', answer: 'One price per size per zone (for example North Goa, South Goa, Belagavi), set by admin and updatable daily. Price is locked at payment.', ask: 'Which zones for the pilot, and who updates prices each day?' },
@@ -98,7 +99,11 @@ const KD = (() => {
   const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
   const inr2 = n => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const kgFmt = n => n.toLocaleString('en-IN', { maximumFractionDigits: 1 }) + ' kg';
-  const qtyFmt = (qty, unit) => unit === 'bag' ? `${qty} bag${qty === 1 ? '' : 's'}` : kgFmt(qty);
+  const tFmt = n => n.toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' t';
+  const qtyFmt = (qty, unit) => unit === 'bag' ? `${qty} bag${qty === 1 ? '' : 's'}` : unit === 't' ? tFmt(qty) : kgFmt(qty);
+  const unitWord = unit => ({ t: 'tonne', kg: 'kg', bag: 'bag' }[unit]);
+  // Precision a quantity is kept to: tonnes to the kg, kg to 100 g, bags whole
+  const roundQty = (qty, unit) => unit === 't' ? Math.round(qty * 1000) / 1000 : unit === 'kg' ? Math.round(qty * 10) / 10 : Math.round(qty);
   const time = ts => new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const date = ts => new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -110,7 +115,7 @@ const KD = (() => {
     if (hit.product.id !== 'tmt') return hit.variant.rate;
     const s = load();
     const override = s.prices && s.prices[zoneId] && s.prices[zoneId][variantId];
-    return override != null ? override : +(hit.variant.rate + (zoneAdj[zoneId] || 0)).toFixed(2);
+    return override != null ? override : hit.variant.rate + (zoneAdj[zoneId] || 0) * 1000;
   };
 
   /* ---------- routing plan: nearest stocking dealer per product ---------- */
@@ -143,7 +148,7 @@ const KD = (() => {
       const q = actual && actual[i] != null ? actual[i] : l.qty;
       const amt = lineAmount(l, q);
       material += amt;
-      if (l.unit === 'kg') weighted += amt;
+      if (l.unit !== 'bag') weighted += amt;
     });
     const gst = material * GST;
     const delivery = feeFor(km);
@@ -152,7 +157,7 @@ const KD = (() => {
   };
 
   /* ---------- state (localStorage with in-memory fallback) ---------- */
-  const KEY = 'kd-demo-v1';
+  const KEY = 'kd-demo-v2';
   let mem = null;
   const seed = () => ({
     user: null, sites: [], activeSite: null, cart: [], orders: [],
@@ -307,7 +312,7 @@ const KD = (() => {
 
   /* ---------- fulfilment ---------- */
   // Max weight the customer has paid for: ordered weight plus the buffer
-  const maxQty = line => line.unit === 'bag' ? line.qty : +(line.qty * (1 + BUFFER)).toFixed(1);
+  const maxQty = line => line.unit === 'bag' ? line.qty : roundQty(line.qty * (1 + BUFFER), line.unit);
 
   function dispatch(shipId, { actual, vehicle, ewb }) {
     const s = load();
@@ -360,7 +365,7 @@ const KD = (() => {
     sh.lines.forEach(i => {
       const l = o.lines[i];
       const f = l.unit === 'bag' ? 1 : (productOf(l) === 'tmt' ? 1.012 : 0.994);
-      a[i] = l.unit === 'bag' ? l.qty : Math.round(l.qty * f * 10) / 10;
+      a[i] = roundQty(l.qty * f, l.unit);
     });
     return a;
   };
@@ -370,10 +375,10 @@ const KD = (() => {
   function demoOrder() {
     const s = load();
     const site = { id: 'demo', name: 'Shetty residence', addr: 'House 22, Colmorod, near Navelim church', area: 'Navelim, Margao', pincode: '403707', zone: 'sgoa', contact: 'Ravi Naik (contractor)', contactPhone: '+91 98500 44556' };
-    const pick = [['tmt-10', 400], ['tmt-12', 900], ['wire-20', 20]];
+    const pick = [['tmt-10', 0.4], ['tmt-12', 0.9], ['wire-20', 20]];
     const lines = pick.map(([vid, qty]) => {
       const { product, variant: v } = variant(vid);
-      return { variantId: vid, name: product.name, label: v.label, qty, unit: product.unit, mode: 'kg', pieces: null, rate: rateFor(vid, site.zone) };
+      return { variantId: vid, name: product.name, label: v.label, qty, unit: product.unit, mode: product.unit, pieces: null, rate: rateFor(vid, site.zone) };
     });
     const o = createOrder(s, { user: { name: 'Priya Shetty', phone: '+91 99230 77881' }, site, lines, method: 'UPI' });
     save(s);
@@ -381,9 +386,9 @@ const KD = (() => {
   }
 
   return {
-    GST, BUFFER, MIN_TMT_KG, RADIUS_KM, ACCEPT_MIN, slabs, feeFor, slabLabel,
+    GST, BUFFER, MIN_TMT_T, RADIUS_KM, ACCEPT_MIN, slabs, feeFor, slabLabel,
     zones, products, variant, dealers, dealer, questions,
-    inr, inr2, kgFmt, qtyFmt, time, date,
+    inr, inr2, kgFmt, tFmt, qtyFmt, unitWord, roundQty, time, date,
     rateFor, nearestFor, plan, totals, load, save, reset, log,
     stocks, online, productOf, createOrder, find, DEMO_DEALER, heartbeat, dealerLive, respond, tick, startTicker,
     maxQty, dispatch, deliver, settle, payout, GATEWAY, simulatedActual, randomEwb, demoOrder,

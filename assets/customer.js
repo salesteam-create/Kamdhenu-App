@@ -6,7 +6,7 @@
   const commit = fn => { const s = S(); fn(s); KD.save(s); };
 
   // UI-only state (not persisted)
-  const ui = { mode: 'kg', draft: {}, pay: 'upi', emi: 6, paying: false, lang: 'en' };
+  const ui = { mode: 't', draft: {}, lastT: {}, pay: 'upi', emi: 6, paying: false, lang: 'en' };
 
   /* ---------- icons ---------- */
   const ic = {
@@ -85,7 +85,7 @@
   const site = () => { const s = S(); return s.sites.find(x => x.id === s.activeSite); };
   const zoneName = id => (KD.zones.find(z => z.id === id) || {}).name || '';
   const cartCount = () => S().cart.length;
-  const tmtKg = lines => lines.filter(l => l.variantId.startsWith('tmt')).reduce((a, l) => a + l.qty, 0);
+  const tmtT = lines => KD.roundQty(lines.filter(l => l.variantId.startsWith('tmt')).reduce((a, l) => a + l.qty, 0), 't');
 
   function toast(msg) {
     let t = app.querySelector('.toast');
@@ -225,7 +225,7 @@
         ${activeOrderCard()}
         <div class="banner">
           <div class="tag">Today's ${zoneName(st.zone)} price ${q(5)}</div>
-          <h3>Kamdhenu TMT from ${KD.inr2(from)}/kg</h3>
+          <h3>Kamdhenu TMT from ${KD.inr(from)}/tonne</h3>
           <p>Plus GST. Delivered by a Kamdhenu dealer near your site.</p>
           <button class="btn sm" style="margin-top:12px" data-act="go" data-to="#/product/tmt">Order TMT</button>
           <svg class="bars" width="120" height="90" viewBox="0 0 120 90" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="7" stroke-linecap="round"><path d="M10 85L85 10"/><path d="M30 88L110 8"/><path d="M50 90L118 22"/></svg>
@@ -250,7 +250,7 @@
   function draftKg(v, p) {
     const val = +ui.draft[v.id] || 0;
     if (p.unit === 'bag') return val;
-    return ui.mode === 'pcs' && p.piecesAllowed ? +(val * v.pieceKg).toFixed(1) : val;
+    return ui.mode === 'pcs' && p.piecesAllowed ? KD.roundQty(val * v.pieceT, p.unit) : val;
   }
 
   function productTotals(p) {
@@ -267,15 +267,16 @@
   function approxText(v, p) {
     const val = +ui.draft[v.id] || 0;
     if (!val || !p.piecesAllowed) return '';
-    if (ui.mode === 'pcs') return `≈ ${KD.kgFmt(val * v.pieceKg)}, billed on actual weight`;
-    return `≈ ${Math.round(val / v.pieceKg)} bars of 12 m`;
+    if (ui.mode === 'pcs') return `≈ ${KD.tFmt(KD.roundQty(val * v.pieceT, 't'))}, billed on actual weight`;
+    return `≈ ${Math.round(val / v.pieceT)} bars of 12 m`;
   }
 
   function vProduct(id) {
     const p = KD.products.find(x => x.id === id) || KD.products[0];
     const st = site();
-    const unitLabel = p.unit === 'bag' ? 'bags' : (ui.mode === 'pcs' && p.piecesAllowed ? 'pcs' : 'kg');
-    const step = p.unit === 'bag' ? 1 : (ui.mode === 'pcs' ? 10 : 100);
+    const pcs = ui.mode === 'pcs' && p.piecesAllowed;
+    const unitLabel = p.unit === 'bag' ? 'bags' : pcs ? 'pcs' : p.unit === 't' ? 'tonnes' : 'kg';
+    const step = p.unit === 'bag' ? 1 : pcs ? 10 : p.unit === 't' ? 0.1 : 5;
     const t = productTotals(p);
     return `${topbar(p.name, '#/home', `<button class="iconbtn cart-ic" data-act="go" data-to="#/cart" aria-label="Cart">${ic.cart}${cartCount() ? `<span class="badge">${cartCount()}</span>` : ''}</button>`)}
     <div class="screen pad">
@@ -284,7 +285,7 @@
         <span class="small"><b>Today's price, ${zoneName(st.zone)}</b> <span class="muted">· updated 9:00 AM</span>${q(5)}</span>
       </div>
       ${p.piecesAllowed ? `<div class="seg" style="margin-bottom:12px">
-        <button class="${ui.mode === 'kg' ? 'on' : ''}" data-act="mode" data-m="kg">Order by kg</button>
+        <button class="${ui.mode === 't' ? 'on' : ''}" data-act="mode" data-m="t">Order by tonnes</button>
         <button class="${ui.mode === 'pcs' ? 'on' : ''}" data-act="mode" data-m="pcs">Order by pieces</button>
       </div>` : ''}
       <div class="vrows">
@@ -292,13 +293,13 @@
           <div class="vrow">
             <div>
               <b>${v.label}</b>
-              <div class="meta">${KD.inr2(KD.rateFor(v.id, st.zone))} / ${p.unit}${v.pieceKg ? ` · bar ≈ ${v.pieceKg} kg` : ''} + GST</div>
+              <div class="meta">${p.unit === 't' ? KD.inr(KD.rateFor(v.id, st.zone)) : KD.inr2(KD.rateFor(v.id, st.zone))} / ${KD.unitWord(p.unit)} + GST${v.pieceKg ? ` · bar ≈ ${v.pieceKg} kg` : ''}</div>
               <div class="approx" data-approx="${v.id}">${approxText(v, p)}</div>
               ${inCart(v.id) ? `<div class="incart">✓ ${KD.qtyFmt(inCart(v.id), p.unit)} in cart</div>` : ''}
             </div>
             <div class="qty">
               <button data-act="step" data-v="${v.id}" data-d="-${step}" aria-label="Less">−</button>
-              <input data-qty="${v.id}" inputmode="numeric" value="${ui.draft[v.id] || ''}" placeholder="0">
+              <input data-qty="${v.id}" inputmode="${p.unit === 't' && !pcs ? 'decimal' : 'numeric'}" value="${ui.draft[v.id] || ''}" placeholder="0">
               <span class="u">${unitLabel}</span>
               <button data-act="step" data-v="${v.id}" data-d="${step}" aria-label="More">+</button>
             </div>
@@ -308,7 +309,7 @@
     </div>
     <div class="footerbar" id="pFooter" ${!t.qty && cartCount() ? 'hidden' : ''}>
       <div class="row between" style="margin-bottom:10px">
-        <span class="muted small" id="pTotQty">${t.qty ? (p.unit === 'bag' ? KD.qtyFmt(t.qty, 'bag') : KD.kgFmt(t.qty)) : 'Nothing added yet'}</span>
+        <span class="muted small" id="pTotQty">${t.qty ? KD.qtyFmt(KD.roundQty(t.qty, p.unit), p.unit) : 'Nothing added yet'}</span>
         <b id="pTotAmt">${KD.inr(t.amt)} <span class="muted small" style="font-weight:500">+ GST</span></b>
       </div>
       <button class="btn block lg" data-act="addCart" data-p="${p.id}" id="addBtn" ${t.qty ? '' : 'disabled'}>Add to cart</button>
@@ -320,7 +321,7 @@
 
   function refreshProductFooter(p) {
     const t = productTotals(p);
-    document.getElementById('pTotQty').textContent = t.qty ? (p.unit === 'bag' ? KD.qtyFmt(t.qty, 'bag') : KD.kgFmt(t.qty)) : 'Nothing added yet';
+    document.getElementById('pTotQty').textContent = t.qty ? KD.qtyFmt(KD.roundQty(t.qty, p.unit), p.unit) : 'Nothing added yet';
     document.getElementById('pTotAmt').innerHTML = `${KD.inr(t.amt)} <span class="muted small" style="font-weight:500">+ GST</span>`;
     document.getElementById('addBtn').disabled = !t.qty;
     const showBar = !t.qty && cartCount() > 0;
@@ -367,13 +368,13 @@
     const lines = cartLinesWithRates();
     const groups = KD.plan(lines);
     const b = billSummary(lines, groups);
-    const kgTmt = tmtKg(lines);
-    const short = kgTmt < KD.MIN_TMT_KG;
+    const tTmt = tmtT(lines);
+    const short = tTmt < KD.MIN_TMT_T;
     return `${topbar('Cart', '#/home')}
     <div class="screen pad">
       <div class="card">
         ${lines.map((l, i) => `<div class="line">
-          <div><b>${esc(l.name)} · ${esc(l.label)}</b><div class="small muted">${KD.inr2(l.rate)}/${l.unit}${l.mode === 'pcs' ? ` · ${l.pieces} pcs ≈ ${KD.kgFmt(l.qty)}` : ''}</div></div>
+          <div><b>${esc(l.name)} · ${esc(l.label)}</b><div class="small muted">${l.unit === 't' ? KD.inr(l.rate) : KD.inr2(l.rate)}/${KD.unitWord(l.unit)}${l.mode === 'pcs' ? ` · ${l.pieces} pcs ≈ ${KD.qtyFmt(l.qty, l.unit)}` : ''}</div></div>
           <div style="text-align:right"><b>${KD.inr(l.qty * l.rate)}</b></div>
           <div class="qty sm">
             <button data-act="cq" data-i="${i}" data-d="-1" aria-label="Less">−</button>
@@ -385,8 +386,8 @@
         <button class="listrow addmore" data-act="go" data-to="#/home"><b class="small">+ Add more items</b></button>
       </div>
       <div class="minorder ${short ? '' : 'ok'}">
-        <div class="row between small"><span>${short ? `Add ${KD.kgFmt(KD.MIN_TMT_KG - kgTmt)} more TMT to place the order` : 'Minimum order reached'} ${q(2)}</span><b>${KD.kgFmt(kgTmt)} / ${KD.MIN_TMT_KG} kg</b></div>
-        <div class="minbar"><i style="width:${Math.min(100, kgTmt / KD.MIN_TMT_KG * 100)}%"></i></div>
+        <div class="row between small"><span>${short ? `Add ${KD.tFmt(KD.roundQty(KD.MIN_TMT_T - tTmt, 't'))} more TMT to place the order` : 'Minimum order reached'} ${q(2)}</span><b>${KD.tFmt(tTmt)} / ${KD.tFmt(KD.MIN_TMT_T)}</b></div>
+        <div class="minbar"><i style="width:${Math.min(100, tTmt / KD.MIN_TMT_T * 100)}%"></i></div>
       </div>
       <div class="section-title">Delivery plan ${q(2)}</div>
       <div class="card">
@@ -616,16 +617,16 @@
   // Shown after Add to cart: what was added, next steps and a binding wire suggestion
   function addedSheet(addedLines) {
     const lines = cartLinesWithRates();
-    const kgTmt = tmtKg(lines);
+    const tTmt = tmtT(lines);
     const hasWire = lines.some(l => l.variantId.startsWith('wire'));
-    const wireKg = Math.max(5, Math.ceil(kgTmt / 1000 * 9 / 5) * 5);
+    const wireKg = Math.max(5, Math.ceil(tTmt * 9 / 5) * 5);
     const amt = lines.reduce((a, l) => a + l.qty * l.rate, 0);
     psheet(`<div class="added">
       <div class="row" style="gap:10px"><span class="okdot">${ic.check}</span><div><h3>Added to cart</h3><span class="small muted">${addedLines.map(l => `${l.label} ${l.short} · ${KD.qtyFmt(l.qty, l.unit)}`).join(', ')}</span></div></div>
       <div class="row between small" style="margin:14px 0 4px"><span>${lines.length} item${lines.length > 1 ? 's' : ''} in cart</span><b>${KD.inr(amt)} + GST</b></div>
-      ${kgTmt && kgTmt < KD.MIN_TMT_KG ? `<div class="note warn" style="margin-top:8px"><span>!</span><span>Add ${KD.kgFmt(KD.MIN_TMT_KG - kgTmt)} more TMT to reach the ${KD.MIN_TMT_KG} kg minimum.</span></div>` : ''}
-      ${kgTmt && !hasWire ? `<div class="suggest">
-        <div class="grow"><b class="small">Need binding wire?</b><div class="small muted">Commonly 8 to 10 kg per tonne of TMT. For your ${KD.kgFmt(kgTmt)}, about ${wireKg} kg. Check with your engineer.</div></div>
+      ${tTmt && tTmt < KD.MIN_TMT_T ? `<div class="note warn" style="margin-top:8px"><span>!</span><span>Add ${KD.tFmt(KD.roundQty(KD.MIN_TMT_T - tTmt, 't'))} more TMT to reach the ${KD.tFmt(KD.MIN_TMT_T)} minimum.</span></div>` : ''}
+      ${tTmt && !hasWire ? `<div class="suggest">
+        <div class="grow"><b class="small">Need binding wire?</b><div class="small muted">Commonly 8 to 10 kg per tonne of TMT. For your ${KD.tFmt(tTmt)}, about ${wireKg} kg. Check with your engineer.</div></div>
         <button class="btn soft sm" data-act="addWire" data-kg="${wireKg}">Add ${wireKg} kg</button>
       </div>` : ''}
       <div class="row" style="margin-top:16px;gap:10px">
@@ -789,9 +790,9 @@
         if (l.mode === 'pcs') {
           const v = KD.variant(l.variantId).variant;
           l.pieces = Math.max(0, l.pieces + d * 5);
-          l.qty = +(l.pieces * v.pieceKg).toFixed(1);
+          l.qty = KD.roundQty(l.pieces * v.pieceT, l.unit);
         } else {
-          l.qty = Math.max(0, +(l.qty + d * (l.unit === 'bag' ? 1 : 50)).toFixed(1));
+          l.qty = Math.max(0, KD.roundQty(l.qty + d * ({ bag: 1, t: 0.1, kg: 5 }[l.unit]), l.unit));
         }
         if (!l.qty) s.cart.splice(+el.dataset.i, 1);
       });
@@ -802,7 +803,7 @@
       commit(s => {
         o.lines.forEach(l => {
           const ex = s.cart.find(c => c.variantId === l.variantId);
-          if (ex) { ex.qty = +(ex.qty + l.qty).toFixed(1); if (l.pieces) ex.pieces = (ex.pieces || 0) + l.pieces; }
+          if (ex) { ex.qty = KD.roundQty(ex.qty + l.qty, l.unit); if (l.pieces) ex.pieces = (ex.pieces || 0) + l.pieces; }
           else s.cart.push({ ...l, rate: KD.rateFor(l.variantId, site().zone) });
         });
       });
@@ -819,7 +820,7 @@
     if (a === 'closeq') return document.getElementById('qsheet').classList.remove('open');
     if (a === 'closeSheet') return closeSheet();
     if (a === 'toast') return toast(el.dataset.msg);
-    if (a === 'reset') { KD.reset(); Object.assign(ui, { draft: {}, mode: 'kg', pay: 'upi' }); return go('#/login'); }
+    if (a === 'reset') { KD.reset(); Object.assign(ui, { draft: {}, mode: 't', pay: 'upi' }); return go('#/login'); }
     if (a === 'verify') {
       const name = document.getElementById('userName').value.trim() || 'Customer';
       commit(s => { s.user = { name, phone: '+91 98220 12345' }; });
@@ -845,7 +846,9 @@
         p.variants.forEach(v => {
           const val = +ui.draft[v.id];
           if (!val) return;
-          ui.draft[v.id] = to === 'pcs' ? Math.round(val / v.pieceKg) : Math.round(val * v.pieceKg);
+          // remember the tonnes typed, so switching back and forth does not drift
+          if (to === 'pcs') { ui.lastT[v.id] = val; ui.draft[v.id] = Math.round(val / v.pieceT); }
+          else ui.draft[v.id] = Math.round(ui.lastT[v.id] / v.pieceT) === val ? ui.lastT[v.id] : KD.roundQty(val * v.pieceT, 't');
         });
         ui.mode = to;
       }
@@ -853,7 +856,7 @@
     }
     if (a === 'step') {
       const cur = +ui.draft[el.dataset.v] || 0;
-      ui.draft[el.dataset.v] = Math.max(0, cur + +el.dataset.d) || '';
+      ui.draft[el.dataset.v] = Math.max(0, KD.roundQty(cur + +el.dataset.d, 't')) || '';
       const input = app.querySelector(`[data-qty="${el.dataset.v}"]`);
       if (input) input.value = ui.draft[el.dataset.v];
       return refreshProductFooter(KD.variant(el.dataset.v).product);
@@ -869,7 +872,7 @@
           const mode = p.piecesAllowed ? ui.mode : p.unit;
           const existing = s.cart.find(l => l.variantId === v.id);
           const pieces = mode === 'pcs' ? +ui.draft[v.id] : null;
-          if (existing) { existing.qty = +(existing.qty + qty).toFixed(1); if (pieces) existing.pieces = (existing.pieces || 0) + pieces; }
+          if (existing) { existing.qty = KD.roundQty(existing.qty + qty, p.unit); if (pieces) existing.pieces = (existing.pieces || 0) + pieces; }
           else s.cart.push({ variantId: v.id, name: p.name.replace(' (5 kg bag)', ''), label: v.label, qty, unit: p.unit, mode, pieces, rate: KD.rateFor(v.id, st.zone) });
           added++;
         });

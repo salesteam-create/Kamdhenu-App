@@ -116,9 +116,8 @@
   };
   const itemsText = (o, sh) => sh.lines.map(i => `${o.lines[i].label} ${KD.variant(o.lines[i].variantId).product.short}`).join(', ');
   const qtyText = (o, sh) => {
-    const kg = sh.lines.filter(i => o.lines[i].unit === 'kg').reduce((a, i) => a + o.lines[i].qty, 0);
-    const bags = sh.lines.filter(i => o.lines[i].unit === 'bag').reduce((a, i) => a + o.lines[i].qty, 0);
-    return [kg ? KD.kgFmt(kg) : '', bags ? KD.qtyFmt(bags, 'bag') : ''].filter(Boolean).join(' + ');
+    const sum = unit => KD.roundQty(sh.lines.filter(i => o.lines[i].unit === unit).reduce((a, i) => a + o.lines[i].qty, 0), unit);
+    return ['t', 'kg', 'bag'].filter(u => sum(u)).map(u => KD.qtyFmt(sum(u), u)).join(' + ');
   };
   const left = f => Math.max(0, KD.ACCEPT_MIN * 60000 - (Date.now() - f.at));
   const mmss = ms => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
@@ -179,7 +178,7 @@
       settled: ['Paid', 'pill good'],
     }[sh.status];
     return `<button class="jobrow" data-act="go" data-to="#/ship/${sh.id}">
-      <span class="ic">${sh.lines.some(i => o.lines[i].unit === 'kg') ? 'TMT' : 'NL'}</span>
+      <span class="ic">${sh.lines.some(i => KD.productOf(o.lines[i]) === 'tmt') ? 'TMT' : sh.lines.some(i => KD.productOf(o.lines[i]) === 'wire') ? 'BW' : 'NL'}</span>
       <div class="grow"><b class="small">${esc(firstName(o.user && o.user.name))} · ${esc(o.site.area)}</b><div class="small muted">${qtyText(o, sh)} · ${sh.id}</div></div>
       <span class="${tag[1]}">${tag[0]}</span>
     </button>`;
@@ -234,7 +233,7 @@
     }
     return ui.weights[sh.id];
   }
-  const overLimit = (o, sh, w) => sh.lines.filter(i => o.lines[i].unit === 'kg' && +w[i] > KD.maxQty(o.lines[i]));
+  const overLimit = (o, sh, w) => sh.lines.filter(i => o.lines[i].unit !== 'bag' && +w[i] > KD.maxQty(o.lines[i]));
 
   function vShip(id) {
     const { o, sh } = KD.find(S(), id);
@@ -246,16 +245,16 @@
       const needEwb = sh.quote.total > 50000;
       action = `<div class="section-title">Load and dispatch ${q(1, 4)}</div>
       <div class="card pad">
-        <p class="small muted" style="margin-bottom:10px">Enter the weighbridge weight for each item. The customer is billed on this weight.</p>
+        <p class="small muted" style="margin-bottom:10px">Enter the weighbridge weight for each item: TMT in tonnes (for example 1.206), binding wire in kg. The customer is billed on this weight.</p>
         ${sh.lines.map(i => {
           const l = o.lines[i];
           const isBad = bad.includes(i);
           return `<div class="wline">
-            <div><b class="small">${esc(l.label)} ${esc(KD.variant(l.variantId).product.short)}</b><div class="small muted">Ordered ${KD.qtyFmt(l.qty, l.unit)}${l.unit === 'kg' ? ` · paid up to ${KD.kgFmt(KD.maxQty(l))}` : ''}</div></div>
-            ${l.unit === 'kg'
+            <div><b class="small">${esc(l.label)} ${esc(KD.variant(l.variantId).product.short)}</b><div class="small muted">Ordered ${KD.qtyFmt(l.qty, l.unit)}${l.unit !== 'bag' ? ` · paid up to ${KD.qtyFmt(KD.maxQty(l), l.unit)}` : ''}</div></div>
+            ${l.unit !== 'bag'
               ? `<input class="input ${isBad ? 'bad' : ''}" data-w="${i}" data-s="${sh.id}" inputmode="decimal" value="${w[i]}">`
               : `<div style="text-align:right"><b>${KD.qtyFmt(l.qty, 'bag')}</b></div>`}
-            <div class="err" data-err="${i}">${isBad ? `Above what the customer paid for. Load at most ${KD.kgFmt(KD.maxQty(l))}.` : ''}</div>
+            <div class="err" data-err="${i}">${isBad ? `Above what the customer paid for. Load at most ${KD.qtyFmt(KD.maxQty(l), l.unit)}.` : ''}</div>
           </div>`;
         }).join('')}
         <div class="hr"></div>
@@ -434,7 +433,7 @@
       const el = app.querySelector(`[data-w="${i}"]`);
       if (el) el.classList.toggle('bad', bad.includes(i));
       const err = app.querySelector(`[data-err="${i}"]`);
-      if (err) err.textContent = bad.includes(i) ? `Above what the customer paid for. Load at most ${KD.kgFmt(KD.maxQty(o.lines[i]))}.` : '';
+      if (err) err.textContent = bad.includes(i) ? `Above what the customer paid for. Load at most ${KD.qtyFmt(KD.maxQty(o.lines[i]), o.lines[i].unit)}.` : '';
     });
     const btn = document.getElementById('dispatchBtn');
     if (btn) btn.disabled = bad.length > 0 || (sh.quote.total > 50000 && !ui.ewb.trim());
@@ -488,7 +487,7 @@
       const { o, sh } = KD.find(S(), el.dataset.s);
       const w = weightsFor(o, sh);
       const actual = {};
-      sh.lines.forEach(i => { actual[i] = o.lines[i].unit === 'bag' ? o.lines[i].qty : +(+w[i]).toFixed(1); });
+      sh.lines.forEach(i => { actual[i] = o.lines[i].unit === 'bag' ? o.lines[i].qty : KD.roundQty(+w[i], o.lines[i].unit); });
       KD.dispatch(sh.id, { actual, vehicle: ui.vehicle.trim(), ewb: ui.ewb.trim() || null });
       ui.ewb = ''; ui.otp = ''; ui.photo = false;
       return toast('Invoice confirmed. Customer notified that the order is on the way.');
