@@ -26,24 +26,22 @@ const KD = (() => {
     { id: 'hbl', name: 'Hubballi-Dharwad', state: 'Karnataka' },
   ];
 
-  // Standard 12 m bar weight: d^2 / 162 kg per metre
-  const barKg = d => +((d * d) / 162 * 12).toFixed(2);
   // TMT is traded in tonnes: rates are per tonne
   const tmtBase = { 8: 58500, 10: 57000, 12: 56000, 16: 55500, 20: 55500, 25: 56000, 32: 56500 };
 
   const products = [
     {
       id: 'tmt', name: 'Kamdhenu TMT Bars', short: 'TMT Bars', brand: 'Kamdhenu',
-      blurb: 'Fe 550D TMT bars, 12 m length. Ordered in tonnes, billed on actual weight.',
-      unit: 't', byWeight: true, piecesAllowed: true, icon: 'tmt',
+      blurb: 'Fe 550D TMT bars, 12 m length. Order in tonnes or kg, billed on actual weight.',
+      unit: 't', byWeight: true, icon: 'tmt',
       variants: [8, 10, 12, 16, 20, 25, 32].map(d => ({
-        id: `tmt-${d}`, label: `${d} mm`, rate: tmtBase[d], pieceKg: barKg(d), pieceT: barKg(d) / 1000,
+        id: `tmt-${d}`, label: `${d} mm`, rate: tmtBase[d],
       })),
     },
     {
       id: 'wire', name: 'Binding Wire', short: 'Binding Wire', brand: 'Kamdhenu',
       blurb: 'Annealed binding wire for tying reinforcement. Billed on actual weight.',
-      unit: 'kg', byWeight: true, piecesAllowed: false, icon: 'wire',
+      unit: 'kg', byWeight: true, icon: 'wire',
       variants: [
         { id: 'wire-18', label: '18 gauge', rate: 76 },
         { id: 'wire-20', label: '20 gauge', rate: 78 },
@@ -52,7 +50,7 @@ const KD = (() => {
     {
       id: 'nails', name: 'Nails (5 kg bag)', short: 'Nails', brand: 'Kamdhenu',
       blurb: 'Wire nails packed in sealed 5 kg bags.',
-      unit: 'bag', byWeight: false, piecesAllowed: false, icon: 'nails',
+      unit: 'bag', byWeight: false, icon: 'nails',
       variants: [
         { id: 'nails-2', label: '2 inch', rate: 430 },
         { id: 'nails-3', label: '3 inch', rate: 415 },
@@ -101,6 +99,8 @@ const KD = (() => {
   const kgFmt = n => n.toLocaleString('en-IN', { maximumFractionDigits: 1 }) + ' kg';
   const tFmt = n => n.toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' t';
   const qtyFmt = (qty, unit) => unit === 'bag' ? `${qty} bag${qty === 1 ? '' : 's'}` : unit === 't' ? tFmt(qty) : kgFmt(qty);
+  // TMT is stored in tonnes; show it in kg where the customer chose to order in kg
+  const lineQty = (line, qty = line.qty) => line.unit === 't' && line.mode === 'kg' ? kgFmt(Math.round(qty * 1000)) : qtyFmt(qty, line.unit);
   const unitWord = unit => ({ t: 'tonne', kg: 'kg', bag: 'bag' }[unit]);
   // Precision a quantity is kept to: tonnes to the kg, kg to 100 g, bags whole
   const roundQty = (qty, unit) => unit === 't' ? Math.round(qty * 1000) / 1000 : unit === 'kg' ? Math.round(qty * 10) / 10 : Math.round(qty);
@@ -378,7 +378,7 @@ const KD = (() => {
     const pick = [['tmt-10', 0.4], ['tmt-12', 0.9], ['wire-20', 20]];
     const lines = pick.map(([vid, qty]) => {
       const { product, variant: v } = variant(vid);
-      return { variantId: vid, name: product.name, label: v.label, qty, unit: product.unit, mode: product.unit, pieces: null, rate: rateFor(vid, site.zone) };
+      return { variantId: vid, name: product.name, label: v.label, qty, unit: product.unit, mode: product.unit, rate: rateFor(vid, site.zone) };
     });
     const o = createOrder(s, { user: { name: 'Priya Shetty', phone: '+91 99230 77881' }, site, lines, method: 'UPI' });
     save(s);
@@ -388,7 +388,7 @@ const KD = (() => {
   return {
     GST, BUFFER, MIN_TMT_T, RADIUS_KM, ACCEPT_MIN, slabs, feeFor, slabLabel,
     zones, products, variant, dealers, dealer, questions,
-    inr, inr2, kgFmt, tFmt, qtyFmt, unitWord, roundQty, time, date,
+    inr, inr2, kgFmt, tFmt, qtyFmt, lineQty, unitWord, roundQty, time, date,
     rateFor, nearestFor, plan, totals, load, save, reset, log,
     stocks, online, productOf, createOrder, find, DEMO_DEALER, heartbeat, dealerLive, respond, tick, startTicker,
     maxQty, dispatch, deliver, settle, payout, GATEWAY, simulatedActual, randomEwb, demoOrder,
