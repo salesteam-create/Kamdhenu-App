@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kamdhenu App · Live demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/common.css">
+  <style>
+    body { min-height: 100vh; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 24px; flex-wrap: wrap; }
+    .top a { font-size: 13px; color: var(--ink-2); text-decoration: none; }
+    .steps { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 24px 14px; }
+    .steps span { background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; box-shadow: var(--shadow); }
+    .steps b { color: var(--brand); margin-right: 4px; }
+    .pair { display: flex; gap: 48px; justify-content: center; align-items: flex-start; padding: 0 24px 24px; }
+    .col { display: grid; justify-items: center; gap: 10px; }
+    .label { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .label span { font-weight: 500; color: var(--ink-3); font-size: 12px; }
+    .frame { width: 390px; height: min(800px, calc(100vh - 160px)); min-height: 560px; border-radius: 40px; border: 10px solid #12161c; overflow: hidden; background: #fff; box-shadow: 0 24px 50px rgba(15, 20, 30, .22); }
+    .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .narrow { display: none; padding: 24px; text-align: center; }
+    @media (max-width: 900px) { .pair, .steps { display: none; } .narrow { display: block; } }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <a href="../index.html">&larr; All prototypes</a>
+    <div class="wordmark"><span class="mark">K</span><span>Live demo<small>Customer and dealer, same order</small></span></div>
+    <button class="btn ghost sm" id="reset">Reset demo</button>
+  </div>
+  <div class="steps">
+    <span><b>1</b>Customer orders and pays</span>
+    <span><b>2</b>Dealer accepts within 15 min</span>
+    <span><b>3</b>Dealer enters loaded weight and dispatches</span>
+    <span><b>4</b>Dealer enters the customer's OTP at site</span>
+    <span><b>5</b>Customer sees the refund, dealer sees the payout</span>
+  </div>
+  <div class="pair">
+    <div class="col">
+      <div class="label">Customer app <span>Anil, building in Navelim</span></div>
+      <div class="frame"><iframe id="cust" src="customer.html" title="Customer app"></iframe></div>
+    </div>
+    <div class="col">
+      <div class="label">Dealer app <span>Shree Ganesh Hardware, 2.1 km away</span></div>
+      <div class="frame"><iframe id="deal" src="dealer.html" title="Dealer app"></iframe></div>
+    </div>
+  </div>
+  <div class="narrow">
+    <p style="margin-bottom:16px">The side-by-side demo needs a wider screen. Open each app separately:</p>
+    <a class="btn" href="customer.html">Customer app</a>
+    <a class="btn ghost" href="dealer.html" style="margin-left:8px">Dealer app</a>
+  </div>
+  <script src="../assets/data.js"></script>
+  <script>
+    document.getElementById('reset').addEventListener('click', () => {
+      KD.reset();
+      document.getElementById('cust').src = 'customer.html';
+      document.getElementById('deal').src = 'dealer.html';
+    });
+  </script>
+</body>
+</html>

@@ -1,17 +1,20 @@
-# Kamdhenu App: clickable prototype
+# Kamdhenu Ordering App: clickable prototype
 
-Phase 1 prototype of a prepaid ordering app for Kamdhenu TMT bars, binding wire and nails in Goa and Karnataka. Orders are routed to the nearest Kamdhenu dealer, and the dealer is paid after delivery.
+Prototype of a B2B ordering app for Mohit Ispat. Distributors and dealers book Kamdhenu TMT in tonnes at the daily price, choose a payment term, add the size split and track each truck. Mohit Ispat runs orders, dispatch, payments and users from a web admin panel.
 
-Plain HTML, CSS and JavaScript. Order routing, dispatch, delivery and payouts run in `assets/data.js`, shared by all pages, so an order placed in one app updates the others live. No build step. Demo data is stored in the browser (localStorage) and can be reset from the app.
+Plain HTML, CSS and JavaScript. No build step. Demo data lives in the browser (localStorage) and is shared live between open tabs, so the apps and the admin panel update each other.
 
-| Page | Status |
+| Page | What it is |
 | --- | --- |
-| `index.html` | Hub with the points to confirm |
-| `customer.html` | Customer app |
-| `dealer.html` | Dealer app (signed in as a demo dealer) |
-| `demo.html` | Customer and dealer apps side by side, sharing the same orders |
-| Admin panel | Next |
+| `index.html` | Hub, with the points to confirm (C1 to C16) |
+| `app.html?as=dealer` | Dealer app |
+| `app.html?as=distributor` | Distributor app (same app, plus a Dealers tab) |
+| `admin.html` | Mohit Ispat admin panel |
+| `demo.html` | Dealer and distributor apps side by side |
+| `consumer-v1/` | Earlier consumer marketplace direction, on hold, kept for reference |
+
+Shared rules and data are in `assets/mi-data.js`. Yellow C pins in the apps mark the points to confirm with the client; turn them on or off with "Show points to confirm".
 
 Run locally: `python3 -m http.server` and open http://localhost:8000.
 
-All prices, dealers and people shown are demo data.
+All prices, companies and people shown are demo data.

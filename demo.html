@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kamdhenu App · Live demo</title>
+  <title>Kamdhenu Ordering · Live demo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -11,54 +11,71 @@
   <style>
     body { min-height: 100vh; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 24px; flex-wrap: wrap; }
-    .top a { font-size: 13px; color: var(--ink-2); text-decoration: none; }
+    .top a.back { font-size: 13px; color: var(--ink-2); text-decoration: none; }
     .steps { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 24px 14px; }
     .steps span { background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; box-shadow: var(--shadow); }
     .steps b { color: var(--brand); margin-right: 4px; }
-    .pair { display: flex; gap: 48px; justify-content: center; align-items: flex-start; padding: 0 24px 24px; }
+    .pair { display: flex; gap: 40px; justify-content: center; align-items: flex-start; padding: 0 24px 24px; }
     .col { display: grid; justify-items: center; gap: 10px; }
     .label { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
     .label span { font-weight: 500; color: var(--ink-3); font-size: 12px; }
     .frame { width: 390px; height: min(800px, calc(100vh - 160px)); min-height: 560px; border-radius: 40px; border: 10px solid #12161c; overflow: hidden; background: #fff; box-shadow: 0 24px 50px rgba(15, 20, 30, .22); }
     .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .adminhint { width: 260px; align-self: center; }
+    .adminhint .card { padding: 18px; }
+    .adminhint h4 { margin-bottom: 8px; }
+    .adminhint p { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
     .narrow { display: none; padding: 24px; text-align: center; }
+    @media (max-width: 1180px) { .adminhint { display: none; } }
     @media (max-width: 900px) { .pair, .steps { display: none; } .narrow { display: block; } }
   </style>
 </head>
 <body>
   <div class="top">
-    <a href="index.html">&larr; All prototypes</a>
-    <div class="wordmark"><span class="mark">K</span><span>Live demo<small>Customer and dealer, same order</small></span></div>
-    <button class="btn ghost sm" id="reset">Reset demo</button>
+    <a class="back" href="index.html">&larr; All prototypes</a>
+    <div class="wordmark"><span class="mark">K</span><span>Live demo<small>Dealer and distributor, same orders</small></span></div>
+    <div class="row" style="gap:8px">
+      <a class="btn soft sm" href="admin.html" target="_blank" rel="noopener">Open admin panel</a>
+      <button class="btn ghost sm" id="reset">Reset demo</button>
+    </div>
   </div>
   <div class="steps">
-    <span><b>1</b>Customer orders and pays</span>
-    <span><b>2</b>Dealer accepts within 15 min</span>
-    <span><b>3</b>Dealer enters loaded weight and dispatches</span>
-    <span><b>4</b>Dealer enters the customer's OTP at site</span>
-    <span><b>5</b>Customer sees the refund, dealer sees the payout</span>
+    <span><b>1</b>Dealer sends tonnes to his distributor</span>
+    <span><b>2</b>Distributor approves and combines</span>
+    <span><b>3</b>Distributor picks a term, price locks</span>
+    <span><b>4</b>Mohit Ispat confirms and dispatches trucks</span>
+    <span><b>5</b>Both track delivery and payment</span>
   </div>
   <div class="pair">
     <div class="col">
-      <div class="label">Customer app <span>Anil, building in Navelim</span></div>
-      <div class="frame"><iframe id="cust" src="customer.html" title="Customer app"></iframe></div>
+      <div class="label">Dealer app <span>Shree Ganesh Hardware, Navelim</span></div>
+      <div class="frame"><iframe id="dealer" src="app.html?as=dealer" title="Dealer app"></iframe></div>
     </div>
     <div class="col">
-      <div class="label">Dealer app <span>Shree Ganesh Hardware, 2.1 km away</span></div>
-      <div class="frame"><iframe id="deal" src="dealer.html" title="Dealer app"></iframe></div>
+      <div class="label">Distributor app <span>Sai Steel Distributors, Margao</span></div>
+      <div class="frame"><iframe id="dist" src="app.html?as=distributor" title="Distributor app"></iframe></div>
+    </div>
+    <div class="adminhint">
+      <div class="card">
+        <h4>Mohit Ispat admin</h4>
+        <p>Open the admin panel in a new tab to publish the daily price, confirm orders and dispatch trucks. Both phones update live.</p>
+        <a class="btn block" href="admin.html" target="_blank" rel="noopener">Open admin panel</a>
+        <p class="small muted" style="margin:12px 0 0">Yellow C pins mark the points to confirm with the client.</p>
+      </div>
     </div>
   </div>
   <div class="narrow">
-    <p style="margin-bottom:16px">The side-by-side demo needs a wider screen. Open each app separately:</p>
-    <a class="btn" href="customer.html">Customer app</a>
-    <a class="btn ghost" href="dealer.html" style="margin-left:8px">Dealer app</a>
+    <p style="margin-bottom:16px">The side-by-side demo needs a wider screen. Open each app on its own:</p>
+    <a class="btn" href="app.html?as=dealer">Dealer app</a>
+    <a class="btn ghost" href="app.html?as=distributor" style="margin-left:8px">Distributor app</a>
   </div>
-  <script src="assets/data.js"></script>
+  <script src="assets/mi-data.js"></script>
   <script>
     document.getElementById('reset').addEventListener('click', () => {
-      KD.reset();
-      document.getElementById('cust').src = 'customer.html';
-      document.getElementById('deal').src = 'dealer.html';
+      MI.reset();
+      try { sessionStorage.clear(); } catch (e) { /* ignore */ }
+      document.getElementById('dealer').src = 'app.html?as=dealer';
+      document.getElementById('dist').src = 'app.html?as=distributor';
     });
   </script>
 </body>

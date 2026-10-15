@@ -3,26 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Kamdhenu App · Customer</title>
+  <title>Kamdhenu Ordering · Dealer and Distributor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/common.css">
   <link rel="stylesheet" href="assets/phone.css">
   <link rel="stylesheet" href="assets/customer.css">
+  <link rel="stylesheet" href="assets/mi-app.css">
 </head>
 <body>
   <div class="stage">
     <aside class="side">
       <a class="back" href="index.html">&larr; All prototypes</a>
       <div>
-        <div class="muted small">Customer app</div>
+        <div class="muted small" id="roleName">Dealer app</div>
         <div class="screen-name" id="screenName">Sign in</div>
       </div>
       <div class="card">
         <div class="toggle">
-          <span>Show discussion points</span>
-          <button class="switch" id="presenterSwitch" aria-label="Show discussion points"></button>
+          <span>Show points to confirm</span>
+          <button class="switch" id="presenterSwitch" aria-label="Show points to confirm"></button>
         </div>
       </div>
       <div class="card" id="notes">
@@ -38,21 +39,26 @@
 
     <aside class="side right">
       <div class="card">
-        <h4>Demo controls</h4>
-        <p class="small muted" style="margin-bottom:12px">This is a clickable prototype. Prices, dealers and people are demo data. Dashed blue buttons simulate steps that a dealer or the system would do.</p>
-        <button class="btn ghost sm block" data-act="reset">Reset demo</button>
+        <h4>Switch user</h4>
+        <p class="small muted" style="margin-bottom:12px">Dealers and distributors use the same app. Distributors get an extra Dealers tab.</p>
+        <div class="row" style="gap:8px">
+          <a class="btn ghost sm grow" href="app.html?as=dealer">Dealer</a>
+          <a class="btn ghost sm grow" href="app.html?as=distributor">Distributor</a>
+        </div>
       </div>
       <div class="card">
-        <h4>Try it together</h4>
-        <p class="small muted" style="margin-bottom:12px">Open the side-by-side demo to place an order here and accept it in the dealer app.</p>
-        <a class="btn soft sm block" href="demo.html">Open side-by-side demo</a>
+        <h4>Demo controls</h4>
+        <p class="small muted" style="margin-bottom:12px">Prices, companies and people are demo data. Dashed blue buttons simulate steps Mohit Ispat would do in the admin panel.</p>
+        <a class="btn soft sm block" href="admin.html" target="_blank" rel="noopener" style="margin-bottom:8px">Open admin panel</a>
+        <a class="btn soft sm block" href="demo.html" style="margin-bottom:8px">Open side-by-side demo</a>
+        <button class="btn ghost sm block" data-act="reset">Reset demo</button>
       </div>
     </aside>
   </div>
 
   <div class="sheet-backdrop" id="qsheet"><div class="sheet" id="qsheetBody"></div></div>
 
-  <script src="assets/data.js"></script>
-  <script src="assets/customer.js"></script>
+  <script src="assets/mi-data.js"></script>
+  <script src="assets/mi-app.js"></script>
 </body>
 </html>
