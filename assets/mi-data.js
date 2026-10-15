@@ -5,7 +5,7 @@ const MI = (() => {
   const SIZES = [8, 10, 12, 16, 20, 25, 32];
   const STATES = ['Goa', 'Karnataka'];
   const DAY = 864e5;
-  const KEY = 'mi-demo-v1';
+  const KEY = 'mi-demo-v2';
 
   /* ---------- points to confirm (shown as C1 to C16 pins) ---------- */
   const questions = [
@@ -116,7 +116,17 @@ const MI = (() => {
       state: 'Goa', tonnes: 12, termId: 'd30', base: 55400, placedAt: at(-1, 16, 10), status: 'booked',
       split: split({ 12: 6, 16: 6 }),
     }));
-    s.orders.forEach(o => { o.log.push({ t: o.placedAt, text: `Booked ${tFmt(o.tonnes)} at ${inr(o.base)}/t` }); });
+    s.orders.push(mk({
+      id: 'MI-1036', by: { role: 'distributor', id: 'D1' }, distributorId: 'D1', dealerId: null, path: 'direct', type: 'full',
+      state: 'Goa', tonnes: 20, termId: 'd7', base: 56000, placedAt: at(-11, 10), status: 'delivered',
+      split: split({ 10: 6, 12: 8, 16: 6 }),
+      trucks: [{ id: 'T6', vehicle: 'GA 07 F 2210', driver: '+91 98500 11002', weightT: 19.86, eta: at(-9), at: at(-10, 15), status: 'delivered', deliveredAt: at(-9, 11), by: 'customer' }],
+    }));
+    s.orders.forEach(o => {
+      freeze(o, s);
+      o.log.push({ t: o.placedAt, text: `Booked ${tFmt(o.tonnes)} at ${inr(o.rate)}/t (${o.termLabel})` });
+    });
+    s.orders.sort((a, b) => b.placedAt - a.placedAt);
 
     s.notifs.push(
       { id: 'n1', to: 'all', text: `Today's price published: Goa ${inr(55200)}/t, Karnataka ${inr(54800)}/t`, at: at(0, 9), link: '#/home' },
@@ -168,16 +178,19 @@ const MI = (() => {
   const rate = (base, termId, s = load()) => base + (term(termId, s) || { adj: 0 }).adj;
   const splitTotal = split => r3(SIZES.reduce((a, k) => a + (+split[k] || 0), 0));
   // Amount using the split for size extras where known
-  const amountFor = (tonnes, split, r, s = load()) => {
-    const ex = s.settings.sizeExtra;
+  const amountFor = (tonnes, split, r, s = load(), frozenExtra) => {
+    const ex = frozenExtra || s.settings.sizeExtra;
     const known = splitTotal(split || {});
     const extras = SIZES.reduce((a, k) => a + (+((split || {})[k]) || 0) * (+ex[k] || 0), 0);
     return tonnes * r + (known ? extras * (tonnes / known) : 0);
   };
 
   /* ---------- order facts ---------- */
-  const lockedRate = (o, s = load()) => rate(o.base, o.termId, s);
-  const dueAt = (o, s = load()) => o.placedAt + term(o.termId, s).days * DAY;
+  // Rate, term and size extras are frozen on the order at booking, so later setting changes never alter it
+  const lockedRate = (o, s = load()) => (o.rate != null ? o.rate : rate(o.base, o.termId, s));
+  const dueAt = (o, s = load()) => o.placedAt + (o.termDays != null ? o.termDays : term(o.termId, s).days) * DAY;
+  const termLabel = (o, s = load()) => o.termLabel || term(o.termId, s).label;
+  const freeze = (o, s) => { const t = term(o.termId, s); o.rate = o.base + t.adj; o.termDays = t.days; o.termLabel = t.label; o.adj = t.adj; o.sizeExtra = { ...s.settings.sizeExtra }; };
   const cutoffAt = (o, s = load()) => o.placedAt + s.settings.cutoffDays * DAY;
   const needsSplit = o => splitTotal(o.split) < o.tonnes - 1e-9;
   const dispatchedT = o => r3(o.trucks.reduce((a, t) => a + t.weightT, 0));
@@ -185,7 +198,7 @@ const MI = (() => {
   const pendingT = o => (o.status === 'delivered' ? 0 : Math.max(0, r3(o.tonnes - dispatchedT(o))));
   // Billed on actual loaded weight once dispatched; estimate on booked tonnes before
   const billT = o => (o.status === 'delivered' ? dispatchedT(o) : Math.max(dispatchedT(o), o.tonnes));
-  const amount = (o, s = load()) => amountFor(billT(o), o.split, lockedRate(o, s), s);
+  const amount = (o, s = load()) => amountFor(billT(o), o.split, lockedRate(o, s), s, o.sizeExtra);
   const canEditSplit = (o, s = load()) => ['pending_dist', 'booked', 'confirmed'].includes(o.status) && Date.now() < cutoffAt(o, s);
   const payState = (o, s = load()) => {
     if (o.payment.status === 'paid') return 'paid';
@@ -236,7 +249,8 @@ const MI = (() => {
         status: isDealer && s.settings.distributorApproval ? 'pending_dist' : 'booked',
         parts, trucks: [], payment: { status: 'unpaid' }, closed: false, log: [],
       };
-      o.log.push({ t: Date.now(), text: `Booked ${tFmt(o.tonnes)} at ${inr(rate(o.base, termId, s))}/t (${term(termId, s).label})` });
+      freeze(o, s);
+      o.log.push({ t: Date.now(), text: `Booked ${tFmt(o.tonnes)} at ${inr(o.rate)}/t (${o.termLabel})` });
       s.orders.unshift(o);
       if (isDealer) notify(s, dist, `New direct order from ${who(by.id, s)}: ${tFmt(o.tonnes)} (for information)`, `#/order/${id}`);
       if (parts) {
@@ -359,7 +373,7 @@ const MI = (() => {
     commit(s => {
       const sg = s.signups.find(x => x.id === id);
       s.signups = s.signups.filter(x => x.id !== id);
-      const did = 'R' + (s.dealers.length + 1);
+      const did = 'R' + (Math.max(...s.dealers.map(d => +d.id.slice(1))) + 1);
       const d = distributor(distributorId, s);
       s.dealers.push({ id: did, name: sg.name, area: sg.area, state: d.state, distributorId, phone: sg.phone, onApp: true });
     });
@@ -373,7 +387,7 @@ const MI = (() => {
     load, save, reset, commit,
     dealer, distributor, who, stateOf, term, order,
     priceToday, rate, splitTotal, amountFor,
-    lockedRate, dueAt, cutoffAt, needsSplit, dispatchedT, deliveredT, pendingT, billT, amount, canEditSplit, payState, statusLabel, STEPS, stepIndex,
+    lockedRate, dueAt, termLabel, cutoffAt, needsSplit, dispatchedT, deliveredT, pendingT, billT, amount, canEditSplit, payState, statusLabel, STEPS, stepIndex,
     ordersFor, notifsFor, unreadFor,
     placeOrder, sendRequest, reviewRequest, approveDirect, saveSplit, confirmOrder, markReady, addTruck, truckReceived, closeOrder, pay, cancelOrder,
     publishPrice, approveSignup, rejectSignup, markSeen,

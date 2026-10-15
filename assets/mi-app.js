@@ -192,7 +192,7 @@
     const disp = MI.dispatchedT(o);
     return `<button class="card ocard" data-act="go" data-to="#/order/${o.id}">
       <div class="row between"><b>${o.id} · ${MI.tFmt(o.tonnes)}</b>${statusPill(o)}</div>
-      <div class="small muted" style="margin:4px 0 8px">${MI.date(o.placedAt)} · ${o.type === 'lumpsum' ? 'Lump-sum' : 'Full order'}${o.path === 'combined' ? ' · Combined' : ''} · ${MI.inr(MI.lockedRate(o))}/t ${esc(MI.term(o.termId).label)}</div>
+      <div class="small muted" style="margin:4px 0 8px">${MI.date(o.placedAt)} · ${o.type === 'lumpsum' ? 'Lump-sum' : 'Full order'}${o.path === 'combined' ? ' · Combined' : ''} · ${MI.inr(MI.lockedRate(o))}/t ${esc(MI.termLabel(o))}</div>
       ${who ? `<div class="small" style="margin-bottom:8px">${who}</div>` : ''}
       ${disp ? `<div class="bar"><i style="width:${Math.min(100, MI.deliveredT(o) / o.tonnes * 100)}%"></i><i class="b2" style="width:${Math.min(100, (disp - MI.deliveredT(o)) / o.tonnes * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${MI.tFmt(MI.deliveredT(o))} delivered · ${MI.tFmt(MI.pendingT(o))} pending</div>` : ''}
       ${isMine(o) ? `<div class="row" style="margin-top:8px">${payPill(o)}<span class="small muted">Due ${MI.date(MI.dueAt(o))}</span></div>` : ''}
@@ -386,7 +386,7 @@
       ${showPay ? `<div class="section-title">Price and payment ${c(10, 16)}</div>
       <div class="card sum">
         <div><span>Price on ${MI.date(o.placedAt)}</span><span>${MI.inr(o.base)}/t</span></div>
-        <div><span>${esc(MI.term(o.termId).label)} term</span><span>${MI.term(o.termId).adj < 0 ? '−' : '+'} ${MI.inr(Math.abs(MI.term(o.termId).adj))}/t</span></div>
+        <div><span>${esc(MI.termLabel(o))} term</span><span>${o.adj < 0 ? '−' : '+'} ${MI.inr(Math.abs(o.adj))}/t</span></div>
         <div><span>Locked rate</span><b>${MI.inr(MI.lockedRate(o))}/t</b></div>
         <div><span>${o.status === 'delivered' ? `Final bill (${MI.tFmt(MI.billT(o))} loaded)` : `Estimate on ${MI.tFmt(o.tonnes)}`}</span><b>${MI.inr(MI.amount(o))} + GST</b></div>
         <div class="total"><span>Due ${MI.dateLong(MI.dueAt(o))}</span>${payPill(o)}</div>
@@ -428,7 +428,7 @@
       <div class="paytiles"><div><span>Outstanding</span><b>${MI.inr(sum(unpaid))}</b></div><div class="${soon.length ? 'amber' : ''}"><span>Due soon ${c(2)}</span><b>${MI.inr(sum(soon))}</b></div><div class="${overdue.length ? 'red' : ''}"><span>Overdue ${c(14)}</span><b>${MI.inr(sum(overdue))}</b></div></div>
       ${overdue.length ? `<div class="note warn" style="margin-top:12px"><span>!</span><span>You have overdue payments. Please clear them to keep ordering smoothly. ${c(14)}</span></div>` : ''}
       <div class="section-title">To pay ${c(10)}</div>
-      ${unpaid.length ? `<div class="card">${unpaid.map(o => `<div class="payrow2"><div class="grow"><b class="small">${o.id} · ${MI.tFmt(MI.billT(o))}</b><div class="small muted">Due ${MI.date(MI.dueAt(o))} · ${esc(MI.term(o.termId).label)}${o.status === 'delivered' ? ' · final' : ' · estimate'}</div></div><div style="text-align:right"><b>${MI.inr(MI.amount(o))}</b><div>${payPill(o)}</div></div><button class="btn sm" data-act="paynow" data-o="${o.id}">Pay</button></div>`).join('')}</div>` : '<div class="card pad small muted">Nothing to pay.</div>'}
+      ${unpaid.length ? `<div class="card">${unpaid.map(o => `<div class="payrow2"><div class="grow"><b class="small">${o.id} · ${MI.tFmt(MI.billT(o))}</b><div class="small muted">Due ${MI.date(MI.dueAt(o))} · ${esc(MI.termLabel(o))}${o.status === 'delivered' ? ' · final' : ' · estimate'}</div></div><div style="text-align:right"><b>${MI.inr(MI.amount(o))}</b><div>${payPill(o)}</div></div><button class="btn sm" data-act="paynow" data-o="${o.id}">Pay</button></div>`).join('')}</div>` : '<div class="card pad small muted">Nothing to pay.</div>'}
       <p class="small muted" style="margin-top:6px">Pay early any time. Offline payments are marked received by Mohit Ispat. ${c(16)}</p>
       <div class="section-title">Paid</div>
       ${paid.length ? `<div class="card">${paid.map(o => `<div class="payrow2"><div class="grow"><b class="small">${o.id}</b><div class="small muted">${MI.date(o.payment.paidAt)} · ${esc(o.payment.method)}</div></div><b>${MI.inr(MI.amount(o))}</b></div>`).join('')}</div>` : '<div class="card pad small muted">No payments yet.</div>'}

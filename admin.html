@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mohit Ispat Admin · Kamdhenu Ordering</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/common.css">
+  <link rel="stylesheet" href="assets/admin.css">
+</head>
+<body class="admin">
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="side-brand" href="#/dashboard">
+        <span class="wordmark"><span class="mark">K</span><span>Mohit Ispat Admin<small>Kamdhenu TMT ordering</small></span></span>
+      </a>
+      <nav class="side-nav" id="nav" aria-label="Main"></nav>
+      <div class="side-foot">
+        <div class="side-user"><span class="avatar">MI</span><span><b>Sales desk</b><small>Mohit Ispat, Goa</small></span></div>
+        <p class="small muted">Prototype with demo data. Changes are saved in this browser.</p>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="tb-title">
+          <div class="crumbs" id="crumbs"></div>
+          <h1 id="title">Dashboard</h1>
+        </div>
+        <div class="tb-actions">
+          <label class="switch" title="Show the yellow C pins for points to confirm">
+            <input type="checkbox" id="presenterToggle">
+            <span class="track"><span class="knob"></span></span>
+            <span class="switch-label"><span class="lg-only">Show discussion points</span><span class="md-only">Discussion points</span></span>
+          </label>
+          <button class="btn ghost sm" data-act="reset">Reset demo</button>
+          <a class="btn sm" href="demo.html" target="_blank" rel="noopener"><span class="lg-only">Open dealer / distributor demo</span><span class="md-only">Open app demo</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+          </a>
+        </div>
+      </header>
+      <main class="content" id="main" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="sheet" role="dialog" aria-modal="true">
+    <div class="sheet" id="sheetBody"></div>
+  </div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="assets/mi-data.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>
